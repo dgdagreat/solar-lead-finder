@@ -124,10 +124,10 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <small class="fw-semibold">1. Color Segmentation</small>
-                        <small>{{ scores.color_segmentation|floatformat:0|default:"0" }}%</small>
+                        <small>{% widthratio scores.color_segmentation|default:0 1 100 %}%</small>
                     </div>
                     <div class="progress" style="height:6px;">
-                        <div class="progress-bar bg-info" style="width:{{ scores.color_segmentation|floatformat:0|default:0 }}%"></div>
+                        <div class="progress-bar bg-info" style="width:{% widthratio scores.color_segmentation|default:0 1 100 %}%"></div>
                     </div>
                     <small class="text-muted">Finds dark blue/black/navy pixels matching solar panel HSV ranges</small>
                 </div>
@@ -136,10 +136,10 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <small class="fw-semibold">2. Grid Line Detection</small>
-                        <small>{{ scores.grid_line_detection|floatformat:0|default:"0" }}%</small>
+                        <small>{% widthratio scores.grid_line_detection|default:0 1 100 %}%</small>
                     </div>
                     <div class="progress" style="height:6px;">
-                        <div class="progress-bar bg-primary" style="width:{{ scores.grid_line_detection|floatformat:0|default:0 }}%"></div>
+                        <div class="progress-bar bg-primary" style="width:{% widthratio scores.grid_line_detection|default:0 1 100 %}%"></div>
                     </div>
                     <small class="text-muted">Hough Transform detects parallel line groups forming a panel grid</small>
                 </div>
@@ -148,10 +148,10 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <small class="fw-semibold">3. Rectangle Clustering</small>
-                        <small>{{ scores.rectangle_clustering|floatformat:0|default:"0" }}%</small>
+                        <small>{% widthratio scores.rectangle_clustering|default:0 1 100 %}%</small>
                     </div>
                     <div class="progress" style="height:6px;">
-                        <div class="progress-bar bg-warning" style="width:{{ scores.rectangle_clustering|floatformat:0|default:0 }}%"></div>
+                        <div class="progress-bar bg-warning" style="width:{% widthratio scores.rectangle_clustering|default:0 1 100 %}%"></div>
                     </div>
                     <small class="text-muted">Finds panel-sized rectangles grouped together as an array</small>
                 </div>
@@ -160,10 +160,10 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <small class="fw-semibold">4. Dark Blob Uniformity</small>
-                        <small>{{ scores.dark_blob_uniformity|floatformat:0|default:"0" }}%</small>
+                        <small>{% widthratio scores.dark_blob_uniformity|default:0 1 100 %}%</small>
                     </div>
                     <div class="progress" style="height:6px;">
-                        <div class="progress-bar bg-secondary" style="width:{{ scores.dark_blob_uniformity|floatformat:0|default:0 }}%"></div>
+                        <div class="progress-bar bg-secondary" style="width:{% widthratio scores.dark_blob_uniformity|default:0 1 100 %}%"></div>
                     </div>
                     <small class="text-muted">Looks for solid, uniform dark blobs (panels are flat and smooth)</small>
                 </div>
@@ -172,10 +172,10 @@
                 <div class="mb-3">
                     <div class="d-flex justify-content-between">
                         <small class="fw-semibold">5. Reference Similarity ⭐</small>
-                        <small>{{ scores.reference_similarity|floatformat:0|default:"0" }}%</small>
+                        <small>{% widthratio scores.reference_similarity|default:0 1 100 %}%</small>
                     </div>
                     <div class="progress" style="height:6px;">
-                        <div class="progress-bar bg-success" style="width:{{ scores.reference_similarity|floatformat:0|default:0 }}%"></div>
+                        <div class="progress-bar bg-success" style="width:{% widthratio scores.reference_similarity|default:0 1 100 %}%"></div>
                     </div>
                     <small class="text-muted">Scores the home's colour + edge + texture fingerprint by its margin between confirmed <em>solar</em> and confirmed <em>no-solar</em> reference images</small>
                 </div>

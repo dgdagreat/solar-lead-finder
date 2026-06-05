@@ -12,13 +12,11 @@ Solar Lead Finder pulls **recently-sold homes** in any city, fetches a **satelli
 Door-to-door and cold-call solar sales waste enormous time on homes that *already* have panels. This app automates the filtering: enter a city, get back a ranked, map-verified list of un-solared, recently-sold homes.
 
 ## 📸 Screenshots
-_Run it locally (see [Getting started](#-getting-started)) to explore._ The signature view is the per-home **5-stage detection breakdown** — every scan shows exactly *why* a rooftop was or wasn't flagged, with a live score bar for each stage.
-
-<!-- Drop dashboard.png + detail.png into docs/screenshots/ and uncomment:
 | Leads dashboard | Per-home detection breakdown |
 | --- | --- |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Detection breakdown](docs/screenshots/detail.png) |
--->
+
+The per-home view shows the **transparent 5-stage detection breakdown** — every scan reveals exactly *why* a rooftop was or wasn't flagged, with a live score bar for each computer-vision stage.
 
 ## ✨ Features
 - **Search recently-sold homes** by city / ZIP, with an optional **radius** filter (Realty-in-US via RapidAPI).
