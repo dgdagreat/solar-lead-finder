@@ -18,6 +18,11 @@ Door-to-door and cold-call solar sales waste enormous time on homes that *alread
 
 The per-home view shows the **transparent 5-stage detection breakdown** — every scan reveals exactly *why* a rooftop was or wasn't flagged, with a live score bar for each computer-vision stage.
 
+## 🌐 Live demo
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/dgdagreat/solar-lead-finder)
+
+One-click deploy on Render's free tier — config lives in [`render.yaml`](render.yaml). It runs on **mock data** out of the box (no API keys); add a `GOOGLE_STREET_VIEW_API_KEY` in the Render dashboard for live satellite imagery + detection.
+
 ## ✨ Features
 - **Search recently-sold homes** by city / ZIP, with an optional **radius** filter (Realty-in-US via RapidAPI).
 - **Runs with zero API keys** — falls back to realistic mock homes so anyone can demo the full flow instantly.

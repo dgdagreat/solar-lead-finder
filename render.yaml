@@ -1,0 +1,21 @@
+# Render Blueprint — deploys Solar Lead Finder as a free web service.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Set GOOGLE_STREET_VIEW_API_KEY in the Render dashboard (Environment tab) so the
+# demo can fetch satellite imagery. Everything else is configured automatically.
+services:
+  - type: web
+    name: solar-lead-finder
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate && python manage.py seed_demo"
+    startCommand: "gunicorn solarleads.wsgi:application --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true          # Render generates a strong secret
+      - key: GOOGLE_STREET_VIEW_API_KEY
+        sync: false                  # set this yourself in the dashboard (secret)

@@ -6,9 +6,14 @@ requests==2.34.2
 python-dotenv==1.2.2
 
 # Computer-vision detection pipeline
-opencv-python==4.13.0.92
+# headless build = no GUI/display libs, required for servers (Render, Docker, etc.)
+opencv-python-headless==4.13.0.92
 numpy==2.4.6
 pillow==12.2.0
+
+# Production web server + static file serving
+gunicorn==23.0.0
+whitenoise==6.8.2
 
 # Async task queue (optional — detection also runs synchronously in-request)
 celery==5.6.3
