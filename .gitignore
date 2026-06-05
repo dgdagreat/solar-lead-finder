@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# Django
+db.sqlite3
+/media/
+/staticfiles/
+
+# Secrets — never commit real API keys
+.env
+
+# ML artifacts & training data (large / regenerable)
+/data/
+*.pt
+*.onnx
+
+# Local scratch images
+/test_image.jpg
+
+# OS / editors
+.DS_Store
+*.sw[op]
+.idea/
+.vscode/

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Solar Lead Finder{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { background: linear-gradient(135deg, #1a1a2e, #16213e); }
+        .navbar-brand { color: #f39c12 !important; font-weight: bold; font-size: 1.4rem; }
+        .stat-card { border-radius: 12px; border: none; transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-3px); }
+        .badge-solar { background-color: #27ae60; }
+        .badge-no-solar { background-color: #e74c3c; }
+        .badge-unknown { background-color: #95a5a6; }
+        .badge-lead { background-color: #f39c12; }
+        .home-card { border-radius: 10px; border: 1px solid #dee2e6; transition: box-shadow 0.2s; }
+        .home-card:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .solar-yes { border-left: 4px solid #27ae60; }
+        .solar-no { border-left: 4px solid #e74c3c; }
+        .solar-unknown { border-left: 4px solid #95a5a6; }
+        .home-img { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; background: #ddd; }
+        .confidence-bar { height: 6px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark px-4 py-3">
+        <a class="navbar-brand" href="/">
+            <i class="fas fa-solar-panel me-2"></i>Solar Lead Finder
+        </a>
+        <span class="text-light opacity-50">Find homes without solar panels</span>
+    </nav>
+
+    <div class="container-fluid px-4 py-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,15 @@
+# Core application — runs the full app (heuristic detector + web UI).
+# Works on mock data with no API keys.
+Django==6.0.6
+djangorestframework==3.17.1
+requests==2.34.2
+python-dotenv==1.2.2
+
+# Computer-vision detection pipeline
+opencv-python==4.13.0.92
+numpy==2.4.6
+pillow==12.2.0
+
+# Async task queue (optional — detection also runs synchronously in-request)
+celery==5.6.3
+redis==8.0.0
