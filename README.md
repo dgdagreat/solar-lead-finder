@@ -2,6 +2,8 @@
 
 > **Find the homes that *don't* have solar panels — instant, qualified leads for solar installers.**
 
+[![Live Demo](https://img.shields.io/badge/▶_Live_Demo-online-brightgreen?style=for-the-badge)](https://solar-lead-finder.onrender.com)
+
 [![Python](https://img.shields.io/badge/Python-3.14-blue.svg)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/Django-6.0-092E20.svg)](https://www.djangoproject.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -19,9 +21,12 @@ Door-to-door and cold-call solar sales waste enormous time on homes that *alread
 The per-home view shows the **transparent 5-stage detection breakdown** — every scan reveals exactly *why* a rooftop was or wasn't flagged, with a live score bar for each computer-vision stage.
 
 ## 🌐 Live demo
+### ▶ [**solar-lead-finder.onrender.com**](https://solar-lead-finder.onrender.com)
+Running live on Render's free tier — give it ~50s to wake if it's been idle.
+
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/dgdagreat/solar-lead-finder)
 
-One-click deploy on Render's free tier — config lives in [`render.yaml`](render.yaml). It runs on **mock data** out of the box (no API keys); add a `GOOGLE_STREET_VIEW_API_KEY` in the Render dashboard for live satellite imagery + detection.
+Deploy your own in one click — config lives in [`render.yaml`](render.yaml). It runs on **mock data** out of the box (no API keys); add a `GOOGLE_STREET_VIEW_API_KEY` for live satellite imagery + detection.
 
 ## ✨ Features
 - **Search recently-sold homes** by city / ZIP, with an optional **radius** filter (Realty-in-US via RapidAPI).
