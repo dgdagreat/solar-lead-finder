@@ -69,6 +69,8 @@ def search_homes(request):
         state    = request.POST.get('state', '').strip()
         zip_code = request.POST.get('zip_code', '').strip()
         radius   = request.POST.get('radius', '').strip()
+        if radius == 'custom':                       # dropdown → free-form box
+            radius = request.POST.get('radius_custom', '').strip()
 
         if not city or not state:
             messages.error(request, 'Please enter both city and state.')

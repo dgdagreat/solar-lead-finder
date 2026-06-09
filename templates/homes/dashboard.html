@@ -30,8 +30,19 @@
                         <input type="text" name="zip_code" class="form-control" placeholder="e.g. 94102">
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label fw-semibold">Radius (mi)</label>
-                        <input type="number" name="radius" class="form-control" placeholder="any" min="1" max="100" step="1">
+                        <label class="form-label fw-semibold">Radius</label>
+                        <select name="radius" id="searchRadius" class="form-select" onchange="toggleCustomRadius()">
+                            <option value="">Any</option>
+                            <option value="5">5 mi</option>
+                            <option value="15" selected>15 mi</option>
+                            <option value="20">20 mi</option>
+                            <option value="25">25 mi</option>
+                            <option value="50">50 mi</option>
+                            <option value="100">100 mi</option>
+                            <option value="150">150 mi</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                        <input type="number" name="radius_custom" id="customRadius" class="form-control mt-1 d-none" placeholder="miles" min="1" max="500" step="1">
                     </div>
                     <div class="col-md-2">
                         <button type="submit" class="btn btn-warning w-100 fw-bold">
@@ -254,6 +265,12 @@
         document.getElementById('searchCity').value = city;
         document.getElementById('searchState').value = state;
         document.getElementById('searchCity').focus();
+    }
+    function toggleCustomRadius() {
+        var sel = document.getElementById('searchRadius');
+        var custom = document.getElementById('customRadius');
+        if (sel.value === 'custom') { custom.classList.remove('d-none'); custom.focus(); }
+        else { custom.classList.add('d-none'); }
     }
     {% if pending > 0 %}
     setTimeout(() => location.reload(), 30000);
