@@ -1,11 +1,11 @@
 """
-Rooftop Annotator — v2
+Rooftop Annotator — v3
 =======================
-Improvements over v1:
-  • Finds the single roof region NEAREST to the image centre
-    (not just "any large contour near centre")
-  • Highlights ONLY that one building using a tight convex hull
-    with a semi-transparent yellow fill — neighbours are NOT covered
+How it works:
+  • Localises the building at the image centre with a flood fill, then keeps
+    only its roof-coloured pixels — so grass, trees, bushes and pools are excluded
+  • Highlights that single roof with a semi-transparent yellow fill — neighbours
+    are not covered
   • Verifies the image is actually a residential property:
       - a roof-coloured region exists within 180 px of centre
       - that region is a plausible single-family size
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 MAX_CENTRE_DIST   = 260   # px — rooftop centroid must be within this of image centre
 MIN_ROOF_AREA     = 1200  # px² — smallest acceptable rooftop
 MAX_ROOF_AREA     = 200000# px² — largest acceptable rooftop
+ROOF_WINDOW_RADIUS = 140  # px — clip the highlight to a single-home window around centre
 HIGHLIGHT_COLOR   = (30, 215, 255)   # BGR: vivid yellow-orange
 HIGHLIGHT_ALPHA   = 0.30             # fill opacity
 OUTLINE_THICKNESS = 3
@@ -90,24 +91,32 @@ def _annotate_rooftop(img_bgr: np.ndarray) -> tuple[np.ndarray, dict]:
     output = img_bgr.copy()
     img_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
-    # ── Step 1: Build roof colour mask ───────────────────────────────────
+    # ── Step 1: Segment roof-coloured pixels ─────────────────────────────
+    # Excludes grass, trees, bushes, pools and cars — none are roof-coloured.
     roof_mask = _roof_colour_mask(img_hsv)
 
-    # ── Step 2: Flood fill from the exact address centre ─────────────────
-    # This spreads ONLY across the one connected roof region at the centre
-    # and stops naturally at colour edges — no hull merging neighbours.
-    fill_mask, filled_area = _flood_fill_roof(img_bgr, cx, cy)
+    # ── Step 2: Isolate the ONE roof at the address centre ───────────────
+    # (a) flood fill from the centre to localise the building, (b) keep only its
+    # roof-coloured pixels (drops grass / trees / bushes / pool), (c) clip to a
+    # single-home window so dense row-house blocks that share roof colours can't
+    # merge into one giant highlight, then re-isolate the centre component.
+    k5 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    fill_mask, _ = _flood_fill_roof(img_bgr, cx, cy)
+    target = cv2.bitwise_and(fill_mask, roof_mask)
+    window = np.zeros_like(target)
+    cv2.circle(window, (cx, cy), ROOF_WINDOW_RADIUS, 255, -1)
+    target = cv2.bitwise_and(target, window)
+    target = _roof_component_at_centre(target, cx, cy)
+    # Close internal gaps (shadows, ridge lines, vents) so the highlight is solid
+    target = cv2.morphologyEx(target, cv2.MORPH_CLOSE, k5, iterations=2)
+    filled_area = int(cv2.countNonZero(target))
 
     # ── Step 3: Verify property is in frame ───────────────────────────────
     verification = _verify_in_frame(img_hsv, filled_area, h, w, cx, cy)
 
     # ── Step 4: Draw highlight ────────────────────────────────────────────
     if filled_area >= MIN_ROOF_AREA:
-        # Clean up the fill mask
-        k5 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        fill_mask = cv2.morphologyEx(fill_mask, cv2.MORPH_CLOSE, k5, iterations=2)
-
-        contours, _ = cv2.findContours(fill_mask, cv2.RETR_EXTERNAL,
+        contours, _ = cv2.findContours(target, cv2.RETR_EXTERNAL,
                                         cv2.CHAIN_APPROX_SIMPLE)
         if contours:
             best_cnt = max(contours, key=cv2.contourArea)
@@ -179,44 +188,58 @@ def _roof_colour_mask(img_hsv: np.ndarray) -> np.ndarray:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# Verification
+# Roof selection + verification
 # ══════════════════════════════════════════════════════════════════════════
+
+def _roof_component_at_centre(mask: np.ndarray, cx: int, cy: int) -> np.ndarray:
+    """
+    Return a mask of the single connected roof region at (cx, cy) — the building
+    that sold. If the centre pixel isn't on a roof, fall back to the nearest
+    plausible roof component within MAX_CENTRE_DIST. Empty mask if none found.
+    """
+    n, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
+    if n <= 1:
+        return np.zeros_like(mask)
+
+    lbl = int(labels[cy, cx])
+    if lbl == 0:                                    # centre isn't on a roof pixel
+        best, best_dist = 0, float("inf")
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] < MIN_ROOF_AREA:
+                continue
+            d = ((centroids[i][0] - cx) ** 2 + (centroids[i][1] - cy) ** 2) ** 0.5
+            if d < best_dist:
+                best, best_dist = i, d
+        if best == 0 or best_dist > MAX_CENTRE_DIST:
+            return np.zeros_like(mask)
+        lbl = best
+
+    return np.where(labels == lbl, 255, 0).astype(np.uint8)
+
 
 def _flood_fill_roof(img_bgr: np.ndarray, cx: int, cy: int) -> tuple[np.ndarray, int]:
     """
-    Flood fill starting from (cx, cy) to find the single connected
-    rooftop region at the address centre.
-
-    Tries progressively looser tolerances until a plausible-sized
-    region is found, then returns that mask + area.
-    Returns (mask, filled_area).
+    Flood fill from (cx, cy) to localise the single connected region at the
+    address centre. Tries progressively looser tolerances until a plausible-sized
+    region is found. Returns (mask, area). This LOCALISES the building; the
+    roof-colour intersection in the caller removes any vegetation it leaks into.
     """
     h, w = img_bgr.shape[:2]
     blurred = cv2.GaussianBlur(img_bgr, (5, 5), 0)
-
     for tolerance in [12, 20, 30, 42]:
         mask = np.zeros((h + 2, w + 2), dtype=np.uint8)
-        lo = (tolerance,) * 3
-        hi = (tolerance,) * 3
-        flags = (cv2.FLOODFILL_MASK_ONLY
-                 | (255 << 8)
-                 | cv2.FLOODFILL_FIXED_RANGE)
-
+        lo = hi = (tolerance,) * 3
+        flags = cv2.FLOODFILL_MASK_ONLY | (255 << 8) | cv2.FLOODFILL_FIXED_RANGE
         try:
-            cv2.floodFill(blurred.copy(), mask, (cx, cy),
-                          (255, 255, 255), lo, hi, flags)
+            cv2.floodFill(blurred.copy(), mask, (cx, cy), (255, 255, 255), lo, hi, flags)
         except Exception:
             continue
-
         result = mask[1:-1, 1:-1]
-        area   = int(np.sum(result > 0))
-
+        area = int(np.sum(result > 0))
         if area >= MIN_ROOF_AREA:
-            # Cap: if it spills too large it has leaked across the whole image
             if area > MAX_ROOF_AREA:
                 continue
             return result, area
-
     return np.zeros((h, w), dtype=np.uint8), 0
 
 
