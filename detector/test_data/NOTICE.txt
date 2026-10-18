@@ -1,0 +1,8 @@
+Test fixture satellite imagery
+==============================
+solar_rooftop.jpg     — a rooftop WITH solar panels     (expected: has_solar = True)
+no_solar_rooftop.jpg  — a rooftop WITHOUT solar panels  (expected: has_solar = False)
+
+Source: Google Maps Static API (satellite view). Imagery © Google / Airbus / Maxar.
+Included only as small, fixed regression-test fixtures for the solar detector;
+not for redistribution or any other use.

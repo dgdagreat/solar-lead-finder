@@ -1,9 +1,14 @@
+from pathlib import Path
+
 from PIL import Image
 
 from django.test import TestCase
 
-from detector.solar_detector import detect_solar_panels, _error_result
+from detector.solar_detector import (
+    detect_solar_panels, detect_solar_panels_from_path, _error_result)
 from detector import reference_comparator
+
+FIXTURES = Path(__file__).resolve().parent / "test_data"
 
 
 class DetectorTests(TestCase):
@@ -33,3 +38,17 @@ class ReferenceComparatorTests(TestCase):
         score = reference_comparator.compare_to_references(img)
         self.assertGreaterEqual(score, 0.0)
         self.assertLessEqual(score, 1.0)
+
+
+class RealImageTests(TestCase):
+    """Regression tests on real satellite rooftop images (see test_data/)."""
+
+    def test_solar_rooftop_is_detected(self):
+        result = detect_solar_panels_from_path(str(FIXTURES / "solar_rooftop.jpg"))
+        self.assertTrue(result["has_solar"],
+                        f"expected has_solar=True, got conf={result['confidence']}")
+
+    def test_no_solar_rooftop_is_not_flagged(self):
+        result = detect_solar_panels_from_path(str(FIXTURES / "no_solar_rooftop.jpg"))
+        self.assertFalse(result["has_solar"],
+                         f"expected has_solar=False, got conf={result['confidence']}")
