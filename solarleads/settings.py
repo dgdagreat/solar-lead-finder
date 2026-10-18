@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,13 +21,23 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure--k%1d3epuwtwqr=egrl!fv(fi6%)o7fwu(32_4q0c(r+pd#yzc')
-
 # DEBUG defaults to False (production-safe). Set DJANGO_DEBUG=True for local dev.
 DEBUG = os.getenv('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+# SECRET_KEY must come from the environment in production; the insecure fallback
+# is used ONLY in DEBUG so local dev runs out of the box. A missing key in
+# production raises rather than silently shipping a public, known key.
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'django-insecure-dev-only-key-not-for-production'
+    else:
+        raise ImproperlyConfigured(
+            "SECRET_KEY environment variable is required when DEBUG is False."
+        )
+
+# No wildcard default — dev uses localhost; Render's hostname is appended below.
+ALLOWED_HOSTS = [h for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h]
 
 # Render injects the public hostname at runtime — trust it for host + CSRF checks
 # (the city search is a POST form, which needs a trusted HTTPS origin in prod).

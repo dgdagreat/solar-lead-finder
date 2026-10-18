@@ -92,9 +92,10 @@ python -m detector.cnn_train          # fine-tune MobileNetV3 (Apple-Silicon MPS
 ```
 
 ## 🧭 Roadmap
+- [x] Live hosted demo — [solar-lead-finder.onrender.com](https://solar-lead-finder.onrender.com)
+- [x] Test coverage for the detector + property-API parsers
+- [ ] Publish accuracy metrics (precision / recall + confusion matrix on a hand-labeled set)
 - [ ] Train & ship the MobileNetV3 classifier once the confirm-loop has gathered enough labels
-- [ ] Live hosted demo
-- [ ] Test coverage for the detector + property-API parsers
 - [ ] Map view of leads
 
 ## 📄 License
