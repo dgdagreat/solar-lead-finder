@@ -1,0 +1,69 @@
+id,address,city,state,solar_status,solar_confidence,color,grid,rect,blob,ref
+19,"163 S Larchmont Blvd","Los Angeles",CA,no_solar,23.0,0.111,0.55,0.461,0.0,0.579
+20,"580 N Beachwood Dr","Los Angeles",CA,no_solar,18.3,0.101,0.55,0.25,0.0,0.565
+21,"563 Wilcox Ave","Los Angeles",CA,no_solar,18.8,0.079,0.0,0.25,0.1,0.553
+22,"5014 Rosewood Ave Unit 1/2","Los Angeles",CA,no_solar,27.8,0.236,0.25,0.25,0.0,0.554
+23,"238 N Gower St","Los Angeles",CA,no_solar,16.5,0.101,1.0,0.2,0.0,0.523
+24,"434 N Beachwood Dr","Los Angeles",CA,no_solar,19.4,0.151,0.4,0.25,0.0,0.571
+25,"7042 Saint Clair Ave","North Hollywood",CA,no_solar,29.2,0.325,0.25,0.493,0.0,
+26,"4820 Dunman Ave","Woodland Hills",CA,has_solar,47.5,1.0,0.25,0.2,0.582,
+27,"6449 Radford Ave","North Hollywood",CA,no_solar,12.1,0.173,0.85,0.25,0.1,
+28,"783 Gatun St Unit 104","San Pedro",CA,no_solar,35.3,0.334,0.55,0.25,0.1,
+29,"9013 Sawyer St","Los Angeles",CA,no_solar,34.1,0.345,0.55,0.25,0.0,
+30,"8451 Calvin Ave",Northridge,CA,no_solar,38.0,0.231,0.55,0.517,0.0,
+31,"923 1/2 Hyperion Ave","Los Angeles",CA,no_solar,33.9,0.574,0.25,0.2,0.0,0.57
+32,"19848 Archwood St",Winnetka,CA,no_solar,31.6,0.431,0.25,0.25,0.0,0.55
+33,"5618 Saint Clair Ave","Valley Village",CA,has_solar,51.9,1.0,0.25,0.478,0.303,0.584
+34,"1945 Livonia Ave","Los Angeles",CA,no_solar,32.7,0.309,0.25,0.25,0.303,0.544
+35,"4524 25th St","San Francisco",CA,no_solar,23.6,0.362,0.0,0.25,0.1,0.509
+36,"4789 19th St","San Francisco",CA,no_solar,10.2,0.0,0.0,0.0,0.05,0.478
+37,"957 Elizabeth St","San Francisco",CA,no_solar,14.6,0.038,0.25,0.0,0.29,0.517
+38,"685 Corbett Ave","San Francisco",CA,no_solar,11.4,0.084,0.0,0.0,0.0,0.485
+39,"3961 25th St","San Francisco",CA,no_solar,17.9,0.114,0.55,0.25,0.0,0.531
+40,"221 Noe St Apt 6","San Francisco",CA,has_solar,54.8,0.997,0.55,0.25,0.29,0.549
+41,"3348 Market St","San Francisco",CA,no_solar,11.0,0.005,0.25,0.0,0.1,0.483
+42,"276 Grand View Ave","San Francisco",CA,no_solar,11.6,0.024,0.25,0.0,0.1,0.495
+43,"132 Corbett Ave","San Francisco",CA,no_solar,10.3,0.024,0.25,0.0,0.0,0.494
+44,"74 Vulcan Stairway","San Francisco",CA,no_solar,11.0,0.0,0.0,0.0,0.05,0.521
+45,"1509 Palma Plz",Austin,TX,no_solar,11.3,0.007,0.55,0.0,0.1,0.497
+46,"5506 Duval St",Austin,TX,has_solar,43.5,0.223,0.85,0.2,0.0,0.561
+47,"4622 Lake View Dr",Austin,TX,no_solar,23.0,0.209,0.55,0.2,0.303,0.557
+48,"815 Stark St",Austin,TX,no_solar,26.2,0.18,0.25,0.496,0.1,0.576
+49,"5701 Westminster Dr",Austin,TX,has_solar,40.0,0.392,0.55,0.25,0.1,0.529
+50,"607 W North Loop Blvd",Austin,TX,no_solar,35.1,0.243,0.25,0.25,0.604,0.547
+51,"6701 Alleyton Dr",Austin,TX,no_solar,30.9,0.407,0.25,0.2,0.1,0.527
+52,"804 W Gibson St",Austin,TX,no_solar,18.3,0.021,0.25,0.25,0.1,0.583
+53,"5708 Nancy Dr Unit 1",Austin,TX,no_solar,34.8,0.405,0.25,0.25,0.303,0.553
+54,"5849 Tandera Ave","San Jose",CA,no_solar,11.8,0.055,0.25,0.0,0.0,0.536
+55,"1722 University Ave","San Jose",CA,no_solar,19.5,0.064,0.25,0.2,0.0,0.711
+56,"1565 Willowdale Dr","San Jose",CA,no_solar,7.6,0.008,0.55,0.0,0.0,0.372
+57,"1281 Malone Rd","San Jose",CA,no_solar,21.7,0.071,0.25,0.25,0.0,0.764
+58,"1483 Princeton Dr","San Jose",CA,no_solar,12.8,0.014,1.0,0.0,0.1,0.566
+59,"5852 Virtual Ln","San Jose",CA,no_solar,31.9,0.425,0.25,0.25,0.0,0.569
+60,"15272 Herring Ave","San Jose",CA,no_solar,11.0,0.038,1.0,0.0,0.1,0.452
+61,"1523 Johnson Ave","San Jose",CA,no_solar,25.5,0.095,0.55,0.2,0.29,0.805
+62,"1128 Keltner Ave","San Jose",CA,has_solar,54.7,1.0,0.25,0.25,0.67,0.733
+63,"6346 Camino Verde Dr","San Jose",CA,no_solar,12.0,0.026,0.25,0.0,0.0,0.572
+64,"1718 Via Lugano","San Jose",CA,no_solar,0.6,0.0,0.0,0.0,0.05,0.0
+65,"1406 Kilchoan Ct","San Jose",CA,no_solar,22.0,0.107,0.25,0.25,0.0,0.744
+66,"1103 Barnes Ln","San Jose",CA,no_solar,9.4,0.0,0.0,0.0,0.78,0.0
+67,"192 Benbow Ave","San Jose",CA,no_solar,19.5,0.142,0.85,0.25,0.0,0.581
+68,"972 Emerald Way","San Jose",CA,has_solar,49.4,1.0,0.25,0.2,0.29,0.748
+69,"2030 Sierra Wood Dr","San Jose",CA,has_solar,40.6,0.407,0.55,0.25,0.1,0.545
+70,"14319 New Jersey Ave","San Jose",CA,no_solar,15.8,0.065,0.25,0.0,0.1,0.665
+71,"5508 W Parsons Rd",Phoenix,AZ,no_solar,13.2,0.091,0.25,0.0,0.1,0.509
+72,"4222 E Hazelwood St",Phoenix,AZ,no_solar,17.4,0.102,0.25,0.15,0.0,0.615
+73,"1569 W El Caminito Dr",Phoenix,AZ,has_solar,35.4,0.292,0.25,0.25,0.29,0.706
+74,"1810 E Harmont Dr",Phoenix,AZ,no_solar,19.6,0.148,0.55,0.25,0.0,0.582
+75,"6909 W Gwen St",Laveen,AZ,no_solar,0.0,0.0,0.0,0.0,0.0,0.0
+76,"4183 E Cholla Canyon Dr",Phoenix,AZ,no_solar,20.4,0.133,0.25,0.25,0.0,0.636
+77,"12435 N 61st Pl",Scottsdale,AZ,no_solar,22.0,0.133,0.0,0.25,0.0,0.718
+78,"12045 S Potomac St",Phoenix,AZ,no_solar,24.8,0.186,0.25,0.25,0.29,0.633
+79,"1010 W Claremont St",Phoenix,AZ,has_solar,21.4,0.217,0.25,0.25,0.0,0.604
+80,"2146 W Monte Cristo Ave",Phoenix,AZ,has_solar,50.7,0.372,0.85,0.25,0.0,0.724
+81,"2609 N 65th Dr",Phoenix,AZ,has_solar,21.2,0.207,0.0,0.25,0.0,0.603
+82,"3819 W Chama Dr",Glendale,AZ,no_solar,10.3,0.018,0.0,0.0,0.1,0.438
+83,"25817 N Lawler Loop",Phoenix,AZ,has_solar,33.4,0.58,0.25,0.0,0.29,0.566
+84,"3022 W Estes Way",Laveen,AZ,no_solar,0.0,0.0,0.0,0.0,0.0,0.0
+85,"3034 E Stella Ln",Phoenix,AZ,has_solar,32.1,0.339,0.25,0.25,0.0,0.664
+86,"2814 E Sierra St",Phoenix,AZ,no_solar,20.8,0.165,0.0,0.25,0.0,0.628

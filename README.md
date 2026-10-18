@@ -91,6 +91,23 @@ python manage.py prepare_cnn_data     # build a training set from confirmed home
 python -m detector.cnn_train          # fine-tune MobileNetV3 (Apple-Silicon MPS aware)
 ```
 
+## 📊 Evaluation & honest limitations
+
+I characterised the detector on the 68 scanned homes ([`notebooks/evaluate_detector.ipynb`](notebooks/evaluate_detector.ipynb); data in [`notebooks/eval_data.csv`](notebooks/eval_data.csv)):
+
+- **It's essentially a colour detector.** Mean stage score, split by the detector's own verdict:
+
+  | stage | has-solar | no-solar | gap |
+  |---|---|---|---|
+  | **color** | **0.57** | **0.14** | **+0.43** |
+  | grid | 0.38 | 0.32 | +0.06 |
+  | ref | 0.62 | 0.52 | +0.10 |
+
+  `color` does almost all the work; `grid` barely separates the classes. That's the quantitative reason dark / low-contrast panels get missed.
+- **It's never highly confident** — combined confidence tops out at ~55% (mean 24%), so the 36% threshold sits on a crowded slope: 37 homes flagged at 20% → 10 at 36% → 0 at 60%.
+
+**Why no precision/recall confusion matrix?** Because I won't fake rigor. Hand-labelling rooftop solar from zoom-20 tiles is unreliable even for a careful human — while building this I mislabelled two *known-solar* homes as "no solar," since the panels aren't resolvable at that scale. A trustworthy confusion matrix needs a human-verified labelled set or higher-resolution imagery — the same data gap that makes a trained CNN the real next step.
+
 ## 🧭 Roadmap
 - [x] Live hosted demo — [solar-lead-finder.onrender.com](https://solar-lead-finder.onrender.com)
 - [x] Test coverage for the detector + property-API parsers
