@@ -37,6 +37,7 @@ from PIL import Image, ImageEnhance
 import requests
 from io import BytesIO
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +60,23 @@ STAGE_FIRE_CUTOFF  = 0.30   # a stage "fires" if its score exceeds this
 def detect_solar_panels_from_url(image_url: str) -> dict:
     try:
         resp = requests.get(image_url, timeout=15)
+        if not resp.ok:
+            body = " ".join((resp.text or "").split())
+            key_match = re.search(r"[?&]key=([^&]+)", image_url)
+            if key_match:
+                body = body.replace(key_match.group(1), "[redacted]")
+            detail = f": {body[:240]}" if body else ""
+            return _error_result(
+                f"Satellite imagery service returned HTTP {resp.status_code}{detail}"
+            )
         resp.raise_for_status()
         image = Image.open(BytesIO(resp.content)).convert("RGB")
         return detect_solar_panels(image)
     except Exception as e:
-        logger.error(f"Failed to fetch/detect {image_url}: {e}")
-        return _error_result(str(e))
+        message = str(e).replace(image_url, "satellite image URL")
+        message = re.sub(r"([?&]key=)[^&\s]+", r"\1[redacted]", message)
+        logger.error(f"Failed to fetch/detect satellite image: {message}")
+        return _error_result(message)
 
 
 def detect_solar_panels_from_path(path: str) -> dict:
@@ -122,15 +134,11 @@ def detect_solar_panels(pil_image: Image.Image) -> dict:
         ref_score      > STAGE_FIRE_CUTOFF,
     ])
 
-    strong_color_hit  = (color_score > 0.55) and (cluster_ratio > 0.35)
-    # Strong reference match + any corroborating signal = high confidence
-    strong_ref_hit    = (ref_score > 0.60) and (color_score > 0.20)
-
-    has_solar = (
-        ((combined > SOLAR_THRESHOLD) and (stages_triggered >= MIN_STAGES_AGREE))
-        or strong_color_hit
-        or strong_ref_hit
-    )
+    # Keep the classification rule consistent with the documented pipeline:
+    # every positive result needs both enough combined evidence and at least
+    # two independent stages. Similarity scores and a single colour cluster
+    # are not calibrated probabilities and must not bypass that requirement.
+    has_solar = combined > SOLAR_THRESHOLD and stages_triggered >= MIN_STAGES_AGREE
 
     logger.info(
         f"color:{color_score:.2f} grid:{grid_score:.2f} "

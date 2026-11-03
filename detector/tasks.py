@@ -30,13 +30,26 @@ def process_home_sync(home_id: int):
     image_url = get_static_map_url(home.full_address)
     if not image_url:
         home.solar_status = 'error'
+        home.solar_confidence = 0
+        home.stages_triggered = 0
+        home.scan_detail = {
+            "stage_scores": {},
+            "details": {},
+            "error": "Satellite scanning is not configured. Set GOOGLE_STREET_VIEW_API_KEY.",
+        }
         home.save()
-        return
+        return {"home_id": home_id, "status": home.solar_status}
 
     home.image_url = image_url
 
     # Step 2 — annotate the building in the image and save locally
-    annotated_path = fetch_and_annotate(home)
+    try:
+        annotated_path = fetch_and_annotate(home)
+    except Exception:
+        # Annotation is a visual aid. It must not prevent the actual solar
+        # scan from running if image decoding or OpenCV processing fails.
+        logger.exception(f"Rooftop annotation failed for home #{home_id}; continuing scan")
+        annotated_path = None
     if annotated_path:
         home.image = annotated_path   # serve the annotated version in the UI
 
@@ -84,6 +97,8 @@ def process_home_sync(home_id: int):
         "stage_scores": result.get("stage_scores", {}),
         "details":      result.get("details", {}),
     }
+    if result.get("method") == "error":
+        home.scan_detail["error"] = result.get("error", "Satellite image scan failed.")
     home.save()
 
     logger.info(

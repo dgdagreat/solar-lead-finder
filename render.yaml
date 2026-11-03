@@ -8,8 +8,8 @@ services:
     name: solar-lead-finder
     runtime: python
     plan: free
-    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate && python manage.py seed_demo"
-    startCommand: "gunicorn solarleads.wsgi:application --bind 0.0.0.0:$PORT"
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --no-input && python manage.py migrate && python manage.py seed_demo --seed-only"
+    startCommand: "python manage.py seed_demo --scan && gunicorn solarleads.wsgi:application --bind 0.0.0.0:$PORT"
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.8"

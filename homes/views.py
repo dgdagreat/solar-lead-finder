@@ -128,11 +128,12 @@ def reprocess_home(request, home_id):
 
 
 def process_all(request):
-    """Run solar detection on all pending homes."""
-    pending = Home.objects.filter(solar_status='unknown')
-    for home in pending:
+    """Run solar detection for pending homes and retry previous scan errors."""
+    retryable = Home.objects.filter(solar_status__in=('unknown', 'error'))
+    count = retryable.count()
+    for home in retryable:
         process_home_sync(home.id)
-    messages.info(request, f'Processed {pending.count()} homes.')
+    messages.info(request, f'Processed or retried {count} homes.')
     return redirect('dashboard')
 
 

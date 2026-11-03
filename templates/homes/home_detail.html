@@ -72,6 +72,12 @@
                     </tr>
                 </table>
 
+                {% if home.solar_status == 'error' and home.scan_detail.error %}
+                <div class="alert alert-danger py-2" role="alert">
+                    <strong>Scan failed:</strong> {{ home.scan_detail.error }}
+                </div>
+                {% endif %}
+
                 <div class="d-grid gap-2 mt-2">
                     <a href="{% url 'reprocess_home' home.id %}" class="btn btn-warning">
                         <i class="fas fa-sync me-1"></i>Re-run Detection
