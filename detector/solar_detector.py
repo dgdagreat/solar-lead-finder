@@ -11,9 +11,10 @@ Stage 1 — Color Segmentation
     Scattered dark pixels (roads, shadows) are penalised.
 
 Stage 2 — Even-Spaced Grid Detection
-    Panel arrays create EVENLY-SPACED parallel lines.
+    Panel arrays create EVENLY-SPACED parallel lines in the address-centered ROI.
     Any urban area has parallel lines; we specifically require
-    periodicity (consistent spacing) using a line-position histogram.
+    periodicity (consistent spacing) using a line-position histogram. This
+    stage can run without a color hit to retain sensitivity to dark panels.
 
 Stage 3 — Same-Size Rectangle Clustering
     An array contains many rectangles of NEARLY IDENTICAL area.
@@ -51,6 +52,7 @@ WEIGHTS = {
 SOLAR_THRESHOLD    = 0.36
 MIN_STAGES_AGREE   = 2
 STAGE_FIRE_CUTOFF  = 0.30   # a stage "fires" if its score exceeds this
+ANALYSIS_CROP_SIZE = 400    # zoom-20 tiles are 640px; focus on the centered address
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -96,7 +98,13 @@ def detect_solar_panels(pil_image: Image.Image) -> dict:
     # Slight contrast boost so panels stand out from roof
     pil_image = ImageEnhance.Contrast(pil_image).enhance(1.3)
 
-    img_rgb  = np.array(pil_image)
+    # Static Maps centers the requested address in the tile. Restrict the four
+    # pixel-level stages to the central roof area so neighboring homes, pools,
+    # and streets cannot dominate the target home's score. Keep the full image
+    # for reference comparison, whose stored fingerprints use full tiles.
+    analysis_image = _center_crop(pil_image, ANALYSIS_CROP_SIZE)
+
+    img_rgb  = np.array(analysis_image)
     img_bgr  = cv2.cvtColor(img_rgb,  cv2.COLOR_RGB2BGR)
     img_hsv  = cv2.cvtColor(img_rgb,  cv2.COLOR_RGB2HSV)
     img_gray = cv2.cvtColor(img_bgr,  cv2.COLOR_BGR2GRAY)
@@ -105,7 +113,9 @@ def detect_solar_panels(pil_image: Image.Image) -> dict:
     cluster_ratio = color_info.get("cluster_ratio", 0.0)
 
     grid_score,               grid_info   = _stage_grid(img_gray, color_mask)
-    effective_grid = grid_score if color_score > 0.22 else 0.0
+    # Grid periodicity is a separate signal and can identify dark panels even
+    # when the color stage has little evidence.
+    effective_grid = grid_score
 
     rect_score,               rect_info   = _stage_rectangles(color_mask, img_gray)
     blob_score,               blob_info   = _stage_dark_blobs(img_gray, color_mask)
@@ -238,7 +248,9 @@ def _stage_grid(img_gray: np.ndarray, color_mask: np.ndarray) -> tuple[float, di
     # Find focus zone from colour mask
     focus_gray = _crop_to_focus_zone(img_gray, color_mask)
     if focus_gray is None:
-        return 0.0, {"clusters": 0}
+        # The input is already centered on the target roof. Analyze that ROI
+        # directly so dark or low-contrast panels still get a grid check.
+        focus_gray = img_gray
 
     blurred   = cv2.GaussianBlur(focus_gray, (0, 0), 2)
     sharpened = cv2.addWeighted(focus_gray, 1.5, blurred, -0.5, 0)
@@ -309,6 +321,16 @@ def _crop_to_focus_zone(img: np.ndarray, mask: np.ndarray, pad: int = 30) -> np.
     if crop.size < 400:
         return None
     return crop
+
+
+def _center_crop(image: Image.Image, size: int) -> Image.Image:
+    """Crop large satellite tiles around their center address coordinate."""
+    width, height = image.size
+    crop_width = min(width, size)
+    crop_height = min(height, size)
+    left = max(0, (width - crop_width) // 2)
+    top = max(0, (height - crop_height) // 2)
+    return image.crop((left, top, left + crop_width, top + crop_height))
 
 
 def _has_even_spacing(bucket_lines: list, angle_deg: float) -> bool:
