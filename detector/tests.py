@@ -160,17 +160,41 @@ class ScanTaskTests(TestCase):
             "stage_scores": {},
             "details": {},
             "error": "Satellite imagery service returned HTTP 403",
-        }
+        }, None
 
         process_home_sync(self.home.id)
         self.home.refresh_from_db()
 
-        detect.assert_called_once_with("https://maps.example/tile")
+        detect.assert_called_once_with("https://maps.example/tile", include_image=True)
         self.assertEqual(self.home.solar_status, "error")
         self.assertEqual(
             self.home.scan_detail["error"],
             "Satellite imagery service returned HTTP 403",
         )
+
+    def test_cnn_overrides_heuristic_using_the_decoded_scan_image(self):
+        raw_image = Image.new("RGB", (640, 640), (80, 80, 80))
+        heuristic = {
+            "method": "multi_stage_cv_v2", "has_solar": False,
+            "confidence": 0.2, "stages_triggered": 1,
+            "stage_scores": {"color_segmentation": 0.2}, "details": {},
+        }
+        with (
+            patch("detector.tasks.get_static_map_url", return_value="https://maps.example/tile"),
+            patch("detector.tasks.fetch_and_annotate", side_effect=RuntimeError("skip annotation")),
+            patch("detector.tasks.detect_solar_panels_from_url", return_value=(heuristic, raw_image)) as scan,
+            patch("detector.cnn.is_available", return_value=True),
+            patch("detector.cnn.predict", return_value={"prob": 0.8, "has_solar": True}) as predict,
+        ):
+            process_home_sync(self.home.id)
+
+        scan.assert_called_once_with("https://maps.example/tile", include_image=True)
+        predict.assert_called_once_with(raw_image)
+        self.home.refresh_from_db()
+        self.assertEqual(self.home.solar_status, "has_solar")
+        self.assertEqual(self.home.solar_confidence, 80.0)
+        self.assertIsNone(self.home.stages_triggered)
+        self.assertEqual(self.home.scan_detail["method"], "mobilenetv3_cnn")
 
 
 class RealImageTests(TestCase):

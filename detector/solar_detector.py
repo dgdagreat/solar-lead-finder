@@ -59,7 +59,8 @@ ANALYSIS_CROP_SIZE = 400    # zoom-20 tiles are 640px; focus on the centered add
 # Public entry points
 # ══════════════════════════════════════════════════════════════════════════
 
-def detect_solar_panels_from_url(image_url: str) -> dict:
+def detect_solar_panels_from_url(image_url: str, include_image: bool = False):
+    """Scan a URL, optionally returning the decoded image for a second model pass."""
     try:
         resp = requests.get(image_url, timeout=15)
         if not resp.ok:
@@ -68,17 +69,20 @@ def detect_solar_panels_from_url(image_url: str) -> dict:
             if key_match:
                 body = body.replace(key_match.group(1), "[redacted]")
             detail = f": {body[:240]}" if body else ""
-            return _error_result(
+            result = _error_result(
                 f"Satellite imagery service returned HTTP {resp.status_code}{detail}"
             )
+            return (result, None) if include_image else result
         resp.raise_for_status()
         image = Image.open(BytesIO(resp.content)).convert("RGB")
-        return detect_solar_panels(image)
+        result = detect_solar_panels(image)
+        return (result, image) if include_image else result
     except Exception as e:
         message = str(e).replace(image_url, "satellite image URL")
         message = re.sub(r"([?&]key=)[^&\s]+", r"\1[redacted]", message)
         logger.error(f"Failed to fetch/detect satellite image: {message}")
-        return _error_result(message)
+        result = _error_result(message)
+        return (result, None) if include_image else result
 
 
 def detect_solar_panels_from_path(path: str) -> dict:

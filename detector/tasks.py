@@ -56,26 +56,20 @@ def process_home_sync(home_id: int):
     home.save()
 
     # Step 3 — run solar panel detector on the raw satellite image
-    result = detect_solar_panels_from_url(image_url)
+    result, raw_image = detect_solar_panels_from_url(image_url, include_image=True)
 
-    # Step 3b — learned override: once the CNN is trained it becomes authoritative
-    # (it catches dark panels the heuristic misses). Until then is_available() is
-    # False and the heuristic result is used unchanged.
+    # Step 3b — learned override. Reuse the decoded scan image to avoid a second
+    # satellite API request. Without a bundled model, keep the heuristic result.
     try:
-        from . import cnn as torch_cnn
-        if torch_cnn.is_available():
-            import requests
-            from io import BytesIO
-            from PIL import Image
-            resp = requests.get(image_url, timeout=15)
-            resp.raise_for_status()
-            pil = Image.open(BytesIO(resp.content)).convert("RGB")
-            pred = torch_cnn.predict(pil)
+        from . import cnn as learned_cnn
+        if raw_image is not None and learned_cnn.is_available():
+            pred = learned_cnn.predict(raw_image)
             if pred:
                 result.setdefault("details", {})["cnn_prob"] = pred["prob"]
                 result["has_solar"]  = pred["has_solar"]
                 result["confidence"] = pred["prob"]
-                result["method"]     = "mobilenetv3_torch"
+                result["method"]     = "mobilenetv3_cnn"
+                result["stages_triggered"] = 0
                 logger.info(f"CNN override [mobilenetv3]: "
                             f"P(solar)={pred['prob']:.3f} → has_solar={pred['has_solar']}")
     except Exception as e:
@@ -92,8 +86,12 @@ def process_home_sync(home_id: int):
         home.is_lead = True  # No solar = potential lead
 
     home.solar_confidence  = round((result.get("confidence") or 0) * 100, 1)
-    home.stages_triggered  = result.get("stages_triggered", 0)
+    home.stages_triggered  = (
+        None if result.get("method") == "mobilenetv3_cnn"
+        else result.get("stages_triggered", 0)
+    )
     home.scan_detail       = {
+        "method": result.get("method"),
         "stage_scores": result.get("stage_scores", {}),
         "details":      result.get("details", {}),
     }
@@ -101,9 +99,11 @@ def process_home_sync(home_id: int):
         home.scan_detail["error"] = result.get("error", "Satellite image scan failed.")
     home.save()
 
-    logger.info(
-        f"Home #{home_id} → {home.solar_status} | "
-        f"confidence={home.solar_confidence}% | "
-        f"stages={home.stages_triggered}/5"
-    )
+    if result.get("method") == "mobilenetv3_cnn":
+        logger.info(f"Home #{home_id} → {home.solar_status} | model_score={home.solar_confidence}%")
+    else:
+        logger.info(
+            f"Home #{home_id} → {home.solar_status} | "
+            f"confidence={home.solar_confidence}% | stages={home.stages_triggered}/5"
+        )
     return {"home_id": home_id, "status": home.solar_status}

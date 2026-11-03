@@ -210,10 +210,14 @@
                             <i class="fas fa-check-circle me-1"></i>No solar panels detected
                         </small><br>
                         <small class="text-muted">
-                            Scan confidence: <strong>{{ home.solar_confidence|floatformat:0 }}%</strong>
-                            {% if home.solar_confidence >= 70 %}— very confident
-                            {% elif home.solar_confidence >= 40 %}— fairly confident
-                            {% else %}— low confidence, verify manually
+                            {% if home.scan_detail.method == 'mobilenetv3_cnn' %}
+                                Model score: <strong>{{ home.solar_confidence|floatformat:0 }}%</strong> — verify manually
+                            {% else %}
+                                Scan confidence: <strong>{{ home.solar_confidence|floatformat:0 }}%</strong>
+                                {% if home.solar_confidence >= 70 %}— very confident
+                                {% elif home.solar_confidence >= 40 %}— fairly confident
+                                {% else %}— low confidence, verify manually
+                                {% endif %}
                             {% endif %}
                         </small>
                     {% elif home.solar_status == 'has_solar' %}
@@ -221,10 +225,14 @@
                             <i class="fas fa-solar-panel me-1"></i>Solar panels detected — skip this home
                         </small><br>
                         <small class="text-muted">
-                            Scan confidence: <strong>{{ home.solar_confidence|floatformat:0 }}%</strong>
-                            {% if home.solar_confidence >= 70 %}— very confident
-                            {% elif home.solar_confidence >= 40 %}— fairly confident
-                            {% else %}— low confidence, verify manually
+                            {% if home.scan_detail.method == 'mobilenetv3_cnn' %}
+                                Model score: <strong>{{ home.solar_confidence|floatformat:0 }}%</strong> — verify manually
+                            {% else %}
+                                Scan confidence: <strong>{{ home.solar_confidence|floatformat:0 }}%</strong>
+                                {% if home.solar_confidence >= 70 %}— very confident
+                                {% elif home.solar_confidence >= 40 %}— fairly confident
+                                {% else %}— low confidence, verify manually
+                                {% endif %}
                             {% endif %}
                         </small>
                     {% endif %}

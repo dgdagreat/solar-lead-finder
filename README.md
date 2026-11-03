@@ -91,28 +91,49 @@ python manage.py prepare_cnn_data     # build a training set from confirmed home
 python -m detector.cnn_train          # fine-tune MobileNetV3 (Apple-Silicon MPS aware)
 ```
 
+### Train on independently labeled roofs
+The repository also includes a reproducible external-data path. It downloads the
+Queens 2018 PV labels and small chips from the New York State orthophoto service;
+it does not use Google Maps imagery. Train/validation/test sets are separated by
+geographic blocks, and the 40 roofs used for the first external evaluation are
+excluded.
+
+```bash
+pip install -r requirements-ml.txt
+python manage.py prepare_labeled_cnn_data --per-split 100
+python -m detector.cnn_train --data data/queens_external_v1 \
+  --out media/models/solar_cnn_candidate.pt --epochs 10 --batch 8 \
+  --lr 0.0003 --seed 3719
+python -m detector.export_cnn_onnx media/models/solar_cnn_candidate.pt \
+  detector/models/solar_cnn_queens2018.onnx
+```
+
+Labels and original imagery are attributed in the generated `NOTICE.md`. The
+data and candidate checkpoint are local artifacts and are not included in git.
+
 ## 📊 Evaluation & honest limitations
 
-I characterised the detector on the 68 scanned homes ([`notebooks/evaluate_detector.ipynb`](notebooks/evaluate_detector.ipynb); data in [`notebooks/eval_data.csv`](notebooks/eval_data.csv)):
+The original heuristic was evaluated on a balanced 200-roof holdout from the
+independently labeled Queens dataset. Its balanced accuracy was **32%** (40% solar
+recall, 24% non-solar specificity). A MobileNetV3 candidate trained on separate
+geographic blocks reached **79.5% balanced accuracy** on the same 200-example
+test split (72% recall, 87% specificity; 159/200 correct). The PyTorch candidate
+and split metrics are recorded in `media/models/solar_cnn_candidate.pt`; its
+ONNX export is bundled for lightweight app inference.
 
-- **It's essentially a colour detector.** Mean stage score, split by the detector's own verdict:
-
-  | stage | has-solar | no-solar | gap |
-  |---|---|---|---|
-  | **color** | **0.57** | **0.14** | **+0.43** |
-  | grid | 0.38 | 0.32 | +0.06 |
-  | ref | 0.62 | 0.52 | +0.10 |
-
-  `color` does almost all the work; `grid` barely separates the classes. That's the quantitative reason dark / low-contrast panels get missed.
-- **It's never highly confident** — combined confidence tops out at ~55% (mean 24%), so the 36% threshold sits on a crowded slope: 37 homes flagged at 20% → 10 at 36% → 0 at 60%.
-
-**Why no precision/recall confusion matrix?** Because I won't fake rigor. Hand-labelling rooftop solar from zoom-20 tiles is unreliable even for a careful human — while building this I mislabelled two *known-solar* homes as "no solar," since the panels aren't resolvable at that scale. A trustworthy confusion matrix needs a human-verified labelled set or higher-resolution imagery — the same data gap that makes a trained CNN the real next step.
+This is an external-data result for Queens 2018 orthophotos, not a measured
+accuracy for live Google Maps scans. Imagery provider, age, and geography can
+change performance. The app uses the bundled classifier when it is available,
+but that does not make the Queens score a live-app accuracy claim.
+The Queens labels cover about 14,000 manually drawn PV polygons and had a
+three-annotator quality review ([dataset](https://zenodo.org/records/15084216),
+[paper](https://www.nature.com/articles/s41597-025-06523-2)).
 
 ## 🧭 Roadmap
 - [x] Live hosted demo — [solar-lead-finder.onrender.com](https://solar-lead-finder.onrender.com)
 - [x] Test coverage for the detector + property-API parsers
-- [ ] Publish accuracy metrics (precision / recall + confusion matrix on a hand-labeled set)
-- [ ] Train & ship the MobileNetV3 classifier once the confirm-loop has gathered enough labels
+- [x] Train and ship MobileNetV3 with an external geographic holdout
+- [x] Publish balanced accuracy, recall, specificity, and confusion-matrix results
 - [ ] Map view of leads
 
 ## 📄 License

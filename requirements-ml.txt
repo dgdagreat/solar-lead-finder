@@ -1,6 +1,8 @@
-# Optional — only needed to train/run the experimental CNN classifier
-# (detector/cnn.py, detector/cnn_train.py). Large download (hundreds of MB).
-# The app runs fine without these; the heuristic detector is the default.
+# Optional — needed to train/export the MobileNetV3 classifier and prepare the
+# labeled Queens imagery. ONNX Runtime for production inference is in requirements.txt.
 -r requirements.txt
 torch==2.12.0
 torchvision==0.27.0
+onnx==1.23.2
+pyshp==3.1.6
+pyproj==3.8.0
