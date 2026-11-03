@@ -49,8 +49,8 @@ The detector ([`detector/solar_detector.py`](detector/solar_detector.py)) fuses 
 
 A home is marked **has-solar** only when the weighted score clears a threshold **and ≥ 2 stages agree** — which keeps false positives (missed leads) low.
 
-### On accuracy, and the CNN 🛣️
-The heuristic pipeline is strong on typical blue panels but can miss **dark / low-contrast arrays** that are pixel-wise hard to tell apart from dark roofs. I prototyped a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.py)) to replace the heuristics. The honest result: with the limited labeled data on hand — and 8 GB of local RAM ruling out the heavyweight same-domain models — the CNN over-fit and wasn't yet better than the CV pipeline. So the app **ships with the heuristic detector** plus a built-in **"confirm" flywheel** that quietly collects labeled, in-domain training images every time a home is verified. It can be trained later with two commands once enough data is gathered. *(Engineering judgment > shipping a worse model.)*
+### On accuracy and the CNN
+The app uses a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.py)) when its bundled ONNX model is available, with the five-stage CV detector as a fallback. On an independent, geographically separated test set of 200 roof images, the classifier reached 81.5% balanced accuracy with a decision cutoff selected on the validation set. This is a Queens 2018 roof-centered result; live Google Maps accuracy has not been measured. The app's confirmation flow can collect in-domain labels for future training.
 
 ## 🛠️ Tech stack
 - **Backend:** Django 6 · Django REST Framework · SQLite
@@ -121,10 +121,14 @@ test split (72% recall, 87% specificity; 159/200 correct). The PyTorch candidate
 and split metrics are recorded in `media/models/solar_cnn_candidate.pt`; its
 ONNX export is bundled for lightweight app inference.
 
+The app uses a 0.42 solar decision cutoff selected on the validation split. This
+yielded 81.5% balanced accuracy on the held-out test set (77% recall, 86%
+specificity; 163/200 correct), compared with 79.5% at the default 0.50 cutoff.
 This is an external-data result for Queens 2018 orthophotos, not a measured
-accuracy for live Google Maps scans. Imagery provider, age, and geography can
-change performance. The app uses the bundled classifier when it is available,
-but that does not make the Queens score a live-app accuracy claim.
+accuracy for live Google Maps scans. Imagery provider, age, address centering,
+and geography can change performance. The app uses the bundled classifier when
+it is available, but that does not make the Queens score a live-app accuracy
+claim.
 The Queens labels cover about 14,000 manually drawn PV polygons and had a
 three-annotator quality review ([dataset](https://zenodo.org/records/15084216),
 [paper](https://www.nature.com/articles/s41597-025-06523-2)).

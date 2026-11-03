@@ -12,8 +12,15 @@ from detector.solar_detector import (
     detect_solar_panels_from_url, _error_result)
 from detector import reference_comparator
 from detector.tasks import process_home_sync
+from detector.cnn import is_solar_probability
 
 FIXTURES = Path(__file__).resolve().parent / "test_data"
+
+
+class CNNDecisionThresholdTests(TestCase):
+    def test_validation_tuned_threshold_classifies_scores(self):
+        self.assertFalse(is_solar_probability(0.419))
+        self.assertTrue(is_solar_probability(0.42))
 
 
 class DetectorTests(TestCase):

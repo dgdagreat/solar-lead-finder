@@ -27,6 +27,14 @@ MODEL_PATH = Path(settings.MEDIA_ROOT) / "models" / "solar_cnn.pt"
 ONNX_MODEL_PATH = Path(__file__).resolve().parent / "models" / "solar_cnn_queens2018.onnx"
 IMG_SIZE   = 224
 CLASSES    = ["no_solar", "solar"]   # ImageFolder-sorted order → indices 0, 1
+# Selected on the independent validation split to maximize balanced accuracy.
+# The exported model's softmax score is not calibrated probability.
+SOLAR_DECISION_THRESHOLD = 0.42
+
+
+def is_solar_probability(prob: float) -> bool:
+    """Apply the validation-tuned decision cutoff to a model score."""
+    return prob >= SOLAR_DECISION_THRESHOLD
 
 _model  = None    # lazily-loaded, cached
 _onnx_session = None
@@ -143,4 +151,4 @@ def predict(pil_image) -> dict | None:
         x = eval_transform()(pil_image.convert("RGB")).unsqueeze(0).to(_get_device())
         with torch.no_grad():
             prob = torch.softmax(loaded(x), dim=1)[0, CLASSES.index("solar")].item()
-    return {"prob": round(prob, 4), "has_solar": prob >= 0.5}
+    return {"prob": round(prob, 4), "has_solar": is_solar_probability(prob)}
