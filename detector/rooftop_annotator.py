@@ -7,7 +7,7 @@ How it works:
   • Highlights that single roof with a semi-transparent yellow fill — neighbours
     are not covered
   • Verifies the image is actually a residential property:
-      - a roof-coloured region exists within 180 px of centre
+      - a roof-coloured region exists within 100 px of centre
       - that region is a plausible single-family size
       - the centre is not dominated by road / pavement
   • Returns a verification dict so the app can warn when
@@ -27,7 +27,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ── Tuning constants ──────────────────────────────────────────────────────
-MAX_CENTRE_DIST   = 260   # px — rooftop centroid must be within this of image centre
+MAX_CENTRE_DIST   = 100   # px — avoid accepting a neighboring roof across a street/yard
 MIN_ROOF_AREA     = 1200  # px² — smallest acceptable rooftop
 MAX_ROOF_AREA     = 200000# px² — largest acceptable rooftop
 ROOF_WINDOW_RADIUS = 140  # px — clip the highlight to a single-home window around centre
@@ -60,17 +60,27 @@ def fetch_and_annotate(home) -> str | None:
         logger.error(f"Failed to download satellite image: {e}")
         return None
 
-    img_rgb = np.array(pil_img)
+    rel_path, _ = annotate_rooftop_image(home, pil_img)
+    return rel_path
+
+
+def annotate_rooftop_image(home, pil_img: Image.Image) -> tuple[str, dict]:
+    """Annotate and verify the exact satellite image used by the classifier."""
+    img_rgb = np.array(pil_img.convert("RGB"))
     img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
 
     annotated, verification = _annotate_rooftop(img_bgr)
 
-    # Persist verification warning to the model notes field
+    # Persist the verification warning, and clear a stale warning after a good scan.
+    warning_prefix = "⚠️ Satellite image may not show target property clearly:"
     if not verification["in_frame"]:
-        warning = f"⚠️ Satellite image may not show target property clearly: {verification['reason']}"
+        warning = f"{warning_prefix} {verification['reason']}"
         if warning not in (home.notes or ""):
             home.notes = warning
             home.save(update_fields=["notes"])
+    elif (home.notes or "").startswith(warning_prefix):
+        home.notes = ""
+        home.save(update_fields=["notes"])
 
     rel_path = f"home_images/annotated_{home.id}.jpg"
     abs_path = Path(settings.MEDIA_ROOT) / rel_path
@@ -78,7 +88,7 @@ def fetch_and_annotate(home) -> str | None:
     cv2.imwrite(str(abs_path), annotated)
 
     logger.info(f"Annotated: {abs_path} | verified={verification['in_frame']}")
-    return rel_path
+    return rel_path, verification
 
 
 # ══════════════════════════════════════════════════════════════════════════

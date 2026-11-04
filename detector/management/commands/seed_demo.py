@@ -42,9 +42,11 @@ class Command(BaseCommand):
         if opts["seed_only"] or not opts["scan"]:
             return
 
-        homes = Home.objects.filter(address__in=DEMO_ADDRESSES).filter(
-            solar_status__in=("unknown", "error")
-        )
+        homes = Home.objects.filter(address__in=DEMO_ADDRESSES)
+        homes = [home for home in homes if (
+            home.solar_status in ("unknown", "error")
+            or (home.scan_detail or {}).get("roof_verification", {}).get("legacy_scan")
+        )]
         scanned = 0
         for home in homes:
             try:

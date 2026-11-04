@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -13,6 +14,7 @@ from detector.solar_detector import (
 from detector import reference_comparator
 from detector.tasks import process_home_sync
 from detector.cnn import is_solar_probability
+from detector.rooftop_annotator import _annotate_rooftop
 
 FIXTURES = Path(__file__).resolve().parent / "test_data"
 
@@ -21,6 +23,20 @@ class CNNDecisionThresholdTests(TestCase):
     def test_validation_tuned_threshold_classifies_scores(self):
         self.assertFalse(is_solar_probability(0.419))
         self.assertTrue(is_solar_probability(0.42))
+
+
+class RooftopVerificationTests(TestCase):
+    def test_grass_and_uniform_street_imagery_are_not_verified_as_roofs(self):
+        for color in ((45, 120, 40), (100, 100, 100)):
+            image = np.full((640, 640, 3), color, dtype=np.uint8)
+            _, verification = _annotate_rooftop(image)
+            self.assertFalse(verification["in_frame"])
+
+    def test_known_roof_images_pass_roof_verification(self):
+        for fixture in ("solar_rooftop.jpg", "no_solar_rooftop.jpg"):
+            image = cv2.imread(str(FIXTURES / fixture))
+            _, verification = _annotate_rooftop(image)
+            self.assertTrue(verification["in_frame"], fixture)
 
 
 class DetectorTests(TestCase):
@@ -154,10 +170,9 @@ class ScanTaskTests(TestCase):
         self.assertIn("GOOGLE_STREET_VIEW_API_KEY", self.home.scan_detail["error"])
 
     @patch("detector.tasks.detect_solar_panels_from_url")
-    @patch("detector.tasks.fetch_and_annotate", side_effect=RuntimeError("bad image"))
     @patch("detector.tasks.get_static_map_url", return_value="https://maps.example/tile")
-    def test_annotation_failure_does_not_stop_detection_and_error_is_saved(
-        self, _get_url, _annotate, detect
+    def test_satellite_scan_error_is_saved(
+        self, _get_url, detect
     ):
         detect.return_value = {
             "method": "error",
@@ -188,7 +203,7 @@ class ScanTaskTests(TestCase):
         }
         with (
             patch("detector.tasks.get_static_map_url", return_value="https://maps.example/tile"),
-            patch("detector.tasks.fetch_and_annotate", side_effect=RuntimeError("skip annotation")),
+            patch("detector.tasks.annotate_rooftop_image", return_value=("home_images/annotated.jpg", {"in_frame": True, "reason": ""})) as annotate,
             patch("detector.tasks.detect_solar_panels_from_url", return_value=(heuristic, raw_image)) as scan,
             patch("detector.cnn.is_available", return_value=True),
             patch("detector.cnn.predict", return_value={"prob": 0.8, "has_solar": True}) as predict,
@@ -196,12 +211,59 @@ class ScanTaskTests(TestCase):
             process_home_sync(self.home.id)
 
         scan.assert_called_once_with("https://maps.example/tile", include_image=True)
+        annotate.assert_called_once_with(self.home, raw_image)
         predict.assert_called_once_with(raw_image)
         self.home.refresh_from_db()
         self.assertEqual(self.home.solar_status, "has_solar")
         self.assertEqual(self.home.solar_confidence, 80.0)
         self.assertIsNone(self.home.stages_triggered)
         self.assertEqual(self.home.scan_detail["method"], "mobilenetv3_cnn")
+
+    def test_unverified_roof_cannot_become_a_solar_label_or_lead(self):
+        raw_image = Image.new("RGB", (640, 640), (80, 80, 80))
+        detected_solar = {
+            "method": "multi_stage_cv_v2", "has_solar": True,
+            "confidence": 0.9, "stages_triggered": 3,
+            "stage_scores": {}, "details": {},
+        }
+        with (
+            patch("detector.tasks.get_static_map_url", return_value="https://maps.example/tile"),
+            patch("detector.tasks.detect_solar_panels_from_url", return_value=(detected_solar, raw_image)),
+            patch("detector.tasks.annotate_rooftop_image", return_value=(None, {
+                "in_frame": False, "reason": "No rooftop detected at address centre",
+            })),
+            patch("detector.cnn.is_available", return_value=True),
+            patch("detector.cnn.predict") as predict,
+        ):
+            process_home_sync(self.home.id)
+
+        self.home.refresh_from_db()
+        predict.assert_not_called()
+        self.assertEqual(self.home.solar_status, "unverified")
+        self.assertFalse(self.home.is_lead)
+        self.assertIsNone(self.home.solar_confidence)
+        self.assertFalse(self.home.scan_detail["roof_verification"]["in_frame"])
+
+    def test_roof_verification_error_fails_closed(self):
+        raw_image = Image.new("RGB", (640, 640), (80, 80, 80))
+        positive = {
+            "method": "multi_stage_cv_v2", "has_solar": True,
+            "confidence": 0.9, "stages_triggered": 3,
+            "stage_scores": {}, "details": {},
+        }
+        with (
+            patch("detector.tasks.get_static_map_url", return_value="https://maps.example/tile"),
+            patch("detector.tasks.detect_solar_panels_from_url", return_value=(positive, raw_image)),
+            patch("detector.tasks.annotate_rooftop_image", side_effect=RuntimeError("bad image")),
+            patch("detector.cnn.is_available", return_value=True),
+            patch("detector.cnn.predict") as predict,
+        ):
+            process_home_sync(self.home.id)
+
+        self.home.refresh_from_db()
+        predict.assert_not_called()
+        self.assertEqual(self.home.solar_status, "unverified")
+        self.assertFalse(self.home.is_lead)
 
 
 class RealImageTests(TestCase):

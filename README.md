@@ -50,7 +50,7 @@ The detector ([`detector/solar_detector.py`](detector/solar_detector.py)) fuses 
 A home is marked **has-solar** only when the weighted score clears a threshold **and ≥ 2 stages agree** — which keeps false positives (missed leads) low.
 
 ### On accuracy and the CNN
-The app uses a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.py)) when its bundled ONNX model is available, with the five-stage CV detector as a fallback. On an independent, geographically separated test set of 200 roof images, the classifier reached 81.5% balanced accuracy with a decision cutoff selected on the validation set. This is a Queens 2018 roof-centered result; live Google Maps accuracy has not been measured. The app's confirmation flow can collect in-domain labels for future training.
+The app uses a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.py)) when its bundled ONNX model is available, with the five-stage CV detector as a fallback. Before assigning either solar status or a lead, it checks that a plausible roof is near the address point in the same image; if that check fails, the home is marked **Roof Unverified** and gets no solar or lead label. On an independent, geographically separated test set of 200 roof images, the classifier reached 81.5% balanced accuracy with a decision cutoff selected on the validation set. This is a Queens 2018 roof-centered result; live Google Maps accuracy has not been measured. The app's confirmation flow can collect in-domain labels for future training.
 
 ## 🛠️ Tech stack
 - **Backend:** Django 6 · Django REST Framework · SQLite

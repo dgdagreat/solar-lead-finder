@@ -75,7 +75,7 @@
 
     <!-- Stats Cards -->
     <!-- Hot Leads = No Solar = What we WANT -->
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2 mb-3">
         <div class="card stat-card shadow-sm text-white" style="background: linear-gradient(135deg, #f39c12, #e67e22);">
             <div class="card-body text-center py-3 position-relative">
                 <div class="fs-2 fw-bold">{{ leads }}</div>
@@ -84,7 +84,7 @@
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2 mb-3">
         <div class="card stat-card shadow-sm text-white" style="background: linear-gradient(135deg, #7f8c8d, #606060);">
             <div class="card-body text-center py-3 position-relative">
                 <div class="fs-2 fw-bold">{{ has_solar }}</div>
@@ -93,7 +93,7 @@
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2 mb-3">
         <div class="card stat-card shadow-sm text-white" style="background: linear-gradient(135deg, #2980b9, #1a5276);">
             <div class="card-body text-center py-3 position-relative">
                 <div class="fs-2 fw-bold">{{ pending }}</div>
@@ -102,12 +102,21 @@
             </div>
         </div>
     </div>
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-4 col-xl-2 mb-3">
         <div class="card stat-card shadow-sm text-white" style="background: linear-gradient(135deg, #1a1a2e, #16213e);">
             <div class="card-body text-center py-3 position-relative">
                 <div class="fs-2 fw-bold">{{ total }}</div>
                 <div class="small fw-semibold">🏠 Total Homes</div>
                 <div class="small opacity-75">In database</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2 mb-3">
+        <div class="card stat-card shadow-sm text-white" style="background: linear-gradient(135deg, #8e6c2f, #6f531f);">
+            <div class="card-body text-center py-3 position-relative">
+                <div class="fs-2 fw-bold">{{ unverified }}</div>
+                <div class="small fw-semibold">🏠 Roof Unverified</div>
+                <div class="small opacity-75">No solar label assigned</div>
             </div>
         </div>
     </div>
@@ -139,6 +148,9 @@
     </a>
     <a href="?{% if show_all %}scope=all&{% endif %}status=has_solar" class="btn btn-sm {% if active_filter == 'has_solar' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
         ☀️ Has Solar ({{ has_solar }})
+    </a>
+    <a href="?{% if show_all %}scope=all&{% endif %}status=unverified" class="btn btn-sm {% if active_filter == 'unverified' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+        🏠 Roof Unverified ({{ unverified }})
     </a>
     <a href="?{% if show_all %}scope=all&{% endif %}status=unknown" class="btn btn-sm {% if active_filter == 'unknown' %}btn-info{% else %}btn-outline-info{% endif %}">
         ⏳ Pending ({{ pending }})
@@ -180,6 +192,8 @@
                         <span class="badge bg-secondary">Has Solar</span>
                     {% elif home.solar_status == 'error' %}
                         <span class="badge bg-danger">Scan Error</span>
+                    {% elif home.solar_status == 'unverified' %}
+                        <span class="badge bg-secondary">Roof Unverified</span>
                     {% else %}
                         <span class="badge bg-info text-dark">Scanning...</span>
                     {% endif %}
@@ -196,7 +210,11 @@
                 {% endif %}
 
                 <!-- Verification warning -->
-                {% if home.notes %}
+                {% if home.solar_status == 'unverified' %}
+                <div class="alert alert-warning py-1 px-2 mt-1 mb-1" style="font-size:0.75rem;">
+                    {{ home.scan_detail.roof_verification.reason }} No solar or lead label assigned until the target roof is verified.
+                </div>
+                {% elif home.notes %}
                 <div class="alert alert-warning py-1 px-2 mt-1 mb-1" style="font-size:0.75rem;">
                     {{ home.notes }}
                 </div>

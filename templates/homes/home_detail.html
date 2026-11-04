@@ -45,6 +45,11 @@
                     <div class="alert alert-secondary py-2 mt-2">
                         <strong>☀️ Has Solar</strong> — Panels already installed. Skip this home.
                     </div>
+                {% elif home.solar_status == 'unverified' %}
+                    <div class="alert alert-warning py-2 mt-2">
+                        <strong>🏠 Target roof unverified.</strong>
+                        {{ home.scan_detail.roof_verification.reason }} No solar or lead label was assigned. Check the highlighted image or adjust the address.
+                    </div>
                 {% endif %}
 
                 <table class="table table-sm table-borderless mt-2">

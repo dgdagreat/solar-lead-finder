@@ -5,7 +5,7 @@ process_home_sync runs directly in the web request (no Redis/Celery needed).
 from homes.models import Home
 from .image_fetcher import get_static_map_url
 from .solar_detector import detect_solar_panels_from_url
-from .rooftop_annotator import fetch_and_annotate
+from .rooftop_annotator import annotate_rooftop_image
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 def process_home_sync(home_id: int):
     """
     Full pipeline for one home:
-      1. Fetch satellite image + annotate the target building
-      2. Run 5-stage CV solar detector
-      3. Save result + stage breakdown to DB
+      1. Fetch one satellite image and run roof verification on it
+      2. Classify solar only when the target roof is verified
+      3. Save result + verification details to DB
     """
     try:
         home = Home.objects.get(id=home_id)
@@ -42,27 +42,48 @@ def process_home_sync(home_id: int):
 
     home.image_url = image_url
 
-    # Step 2 — annotate the building in the image and save locally
-    try:
-        annotated_path = fetch_and_annotate(home)
-    except Exception:
-        # Annotation is a visual aid. It must not prevent the actual solar
-        # scan from running if image decoding or OpenCV processing fails.
-        logger.exception(f"Rooftop annotation failed for home #{home_id}; continuing scan")
-        annotated_path = None
-    if annotated_path:
-        home.image = annotated_path   # serve the annotated version in the UI
-
     home.save()
 
-    # Step 3 — run solar panel detector on the raw satellite image
+    # Step 2 — fetch once, then use this same image for roof verification and solar detection.
     result, raw_image = detect_solar_panels_from_url(image_url, include_image=True)
 
-    # Step 3b — learned override. Reuse the decoded scan image to avoid a second
-    # satellite API request. Without a bundled model, keep the heuristic result.
+    roof_verification = None
+    if raw_image is not None:
+        try:
+            annotated_path, roof_verification = annotate_rooftop_image(home, raw_image)
+            if annotated_path:
+                home.image = annotated_path
+        except Exception:
+            logger.exception(f"Roof verification failed for home #{home_id}")
+            roof_verification = {
+                "in_frame": False,
+                "reason": "Could not verify that the image shows the target roof.",
+            }
+            home.notes = f"⚠️ {roof_verification['reason']}"
+        home.save()
+
+    # Fail closed: without a verified target roof, a tree, bush, road, or
+    # neighboring roof must never be turned into a solar label or sales lead.
+    if result.get("method") != "error" and not (roof_verification or {}).get("in_frame"):
+        reason = (roof_verification or {}).get(
+            "reason", "Satellite image did not provide a verifiable target roof."
+        )
+        result = {
+            "method": "roof_unverified",
+            "has_solar": False,
+            "confidence": None,
+            "stages_triggered": None,
+            "stage_scores": {},
+            "details": {},
+            "roof_verification": {"in_frame": False, "reason": reason},
+        }
+
+    # Step 3 — learned override, only after the target roof was verified.
     try:
         from . import cnn as learned_cnn
-        if raw_image is not None and learned_cnn.is_available():
+        if (result.get("method") != "error" and raw_image is not None
+                and (roof_verification or {}).get("in_frame")
+                and learned_cnn.is_available()):
             pred = learned_cnn.predict(raw_image)
             if pred:
                 result.setdefault("details", {})["cnn_prob"] = pred["prob"]
@@ -78,6 +99,10 @@ def process_home_sync(home_id: int):
     # Step 4 — save result
     if result.get("method") == "error":
         home.solar_status = 'error'
+        home.is_lead = False
+    elif result.get("method") == "roof_unverified":
+        home.solar_status = 'unverified'
+        home.is_lead = False
     elif result["has_solar"]:
         home.solar_status = 'has_solar'
         home.is_lead = False
@@ -85,7 +110,8 @@ def process_home_sync(home_id: int):
         home.solar_status = 'no_solar'
         home.is_lead = True  # No solar = potential lead
 
-    home.solar_confidence  = round((result.get("confidence") or 0) * 100, 1)
+    confidence = result.get("confidence")
+    home.solar_confidence = round(confidence * 100, 1) if confidence is not None else None
     home.stages_triggered  = (
         None if result.get("method") == "mobilenetv3_cnn"
         else result.get("stages_triggered", 0)
@@ -95,6 +121,10 @@ def process_home_sync(home_id: int):
         "stage_scores": result.get("stage_scores", {}),
         "details":      result.get("details", {}),
     }
+    if result.get("roof_verification") or roof_verification:
+        home.scan_detail["roof_verification"] = (
+            result.get("roof_verification") or roof_verification
+        )
     if result.get("method") == "error":
         home.scan_detail["error"] = result.get("error", "Satellite image scan failed.")
     home.save()

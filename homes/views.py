@@ -40,6 +40,7 @@ def dashboard(request):
     no_solar  = base.filter(solar_status='no_solar').count()
     has_solar = base.filter(solar_status='has_solar').count()
     pending   = base.filter(solar_status='unknown').count()
+    unverified = base.filter(solar_status='unverified').count()
     total     = base.count()
 
     if solar_status:
@@ -51,6 +52,7 @@ def dashboard(request):
         'no_solar': no_solar,
         'has_solar': has_solar,
         'pending': pending,
+        'unverified': unverified,
         'total': total,
         'active_filter': solar_status,
         'scoped': scoped,
