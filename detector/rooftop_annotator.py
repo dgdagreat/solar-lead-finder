@@ -82,12 +82,25 @@ def annotate_rooftop_image(home, pil_img: Image.Image) -> tuple[str, dict]:
         home.notes = ""
         home.save(update_fields=["notes"])
 
+    # Save through Django's storage backend (not a raw filesystem write) so the
+    # annotated image lands wherever `default` storage points: the local media
+    # dir in dev, or the GCS bucket in production. tasks.py sets this rel_path as
+    # home.image, so home.image.url then resolves correctly on either backend.
     rel_path = f"home_images/annotated_{home.id}.jpg"
-    abs_path = Path(settings.MEDIA_ROOT) / rel_path
-    abs_path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(abs_path), annotated)
+    ok, buf = cv2.imencode(".jpg", annotated)
+    if not ok:
+        raise RuntimeError("Failed to encode annotated rooftop image")
 
-    logger.info(f"Annotated: {abs_path} | verified={verification['in_frame']}")
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+
+    # Overwrite any prior annotation so the filename stays stable (storage.save
+    # would otherwise append a random suffix on collision).
+    if default_storage.exists(rel_path):
+        default_storage.delete(rel_path)
+    default_storage.save(rel_path, ContentFile(buf.tobytes()))
+
+    logger.info(f"Annotated: {rel_path} | verified={verification['in_frame']}")
     return rel_path, verification
 
 

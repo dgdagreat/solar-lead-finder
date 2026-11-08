@@ -1,0 +1,35 @@
+# Keep the build context lean and never ship secrets or dev-only state.
+# NOTE: this intentionally does NOT exclude detector/models/*.onnx (the bundled
+# classifier, force-tracked past .gitignore) or media/*_references/ (Stage-5
+# fingerprints) — both are read at runtime.
+
+.git/
+.gitignore
+.dockerignore
+.gcloudignore
+
+# Virtualenvs / caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Secrets & dev database (prod uses DATABASE_URL + a real SECRET_KEY)
+.env
+db.sqlite3
+
+# Large / regenerable artifacts not needed at runtime
+data/
+notebooks/
+staticfiles/
+media/home_images/
+media/annotated_*.jpg
+media/models/*.pt
+docs/screenshots/
+
+# OS / editor noise
+.DS_Store
+*.sw[op]
+.idea/
+.vscode/

@@ -47,6 +47,27 @@ if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
     CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
 
+# Cloud Run sets K_SERVICE automatically; trust the *.run.app domain for host
+# and CSRF so the POST search form works. Map a custom domain by adding it to
+# the ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS environment variables instead.
+if os.getenv('K_SERVICE'):
+    ALLOWED_HOSTS.append('.run.app')
+    CSRF_TRUSTED_ORIGINS.append('https://*.run.app')
+
+CSRF_TRUSTED_ORIGINS += [o for o in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if o]
+
+# Behind the Cloud Run / Render HTTPS proxy, TLS is terminated upstream and the
+# real scheme arrives in X-Forwarded-Proto. Without this, Django treats requests
+# as plain HTTP and the secure-cookie / CSRF checks on the POST form fail.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'True') == 'True'
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # HSTS is opt-in: these demos share the *.run.app / *.onrender.com apex,
+    # where includeSubDomains/preload would wrongly affect sibling sites.
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))
+
 
 # Application definition
 
@@ -103,6 +124,17 @@ DATABASES = {
     }
 }
 
+# Local dev and the zero-config demo stay on SQLite. In production set
+# DATABASE_URL (managed Postgres — Cloud SQL, Neon, Supabase, …) and it takes
+# over automatically, so leads and human confirmations survive redeploys that
+# would otherwise wipe an ephemeral container filesystem.
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    import dj_database_url
+    DATABASES['default'] = dj_database_url.parse(
+        DATABASE_URL, conn_max_age=600, conn_health_checks=True,
+    )
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -146,6 +178,22 @@ STORAGES = {
 }
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# The container filesystem is ephemeral, so rooftop images written at scan time
+# must live in object storage to persist and be served. Set GS_BUCKET_NAME to
+# route Django's default storage to Google Cloud Storage; on Cloud Run the
+# service account supplies credentials automatically (ADC — no key file).
+GS_BUCKET_NAME = os.getenv('GS_BUCKET_NAME', '')
+if GS_BUCKET_NAME:
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.gcloud.GoogleCloudStorage',
+        'OPTIONS': {
+            'bucket_name': GS_BUCKET_NAME,
+            'default_acl': None,        # uniform bucket-level access (no per-object ACLs)
+            'querystring_auth': False,  # objects served via bucket IAM (public read)
+            **({'project_id': os.getenv('GS_PROJECT_ID')} if os.getenv('GS_PROJECT_ID') else {}),
+        },
+    }
 
 # Celery
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')

@@ -1,0 +1,38 @@
+# Controls what `gcloud run deploy --source .` uploads to Cloud Build.
+#
+# IMPORTANT: without this file, gcloud derives its exclusions from .gitignore,
+# which lists `*.onnx`, `*.pt` and `/media/` — that would silently drop the
+# bundled ONNX classifier (detector/models/solar_cnn_queens2018.onnx) and the
+# Stage-5 reference fingerprints from the image, degrading detection. This file
+# replaces that behaviour and keeps those runtime assets in.
+
+.git/
+.gitignore
+.dockerignore
+.gcloudignore
+
+# Virtualenvs / caches
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Secrets & dev database (prod uses DATABASE_URL + a real SECRET_KEY)
+.env
+db.sqlite3
+
+# Large / regenerable artifacts not needed at runtime
+data/
+notebooks/
+staticfiles/
+media/home_images/
+media/annotated_*.jpg
+media/models/*.pt
+docs/screenshots/
+
+# OS / editor noise
+.DS_Store
+*.sw[op]
+.idea/
+.vscode/
