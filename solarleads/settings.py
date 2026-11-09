@@ -131,9 +131,25 @@ DATABASES = {
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
     import dj_database_url
-    DATABASES['default'] = dj_database_url.parse(
+    _db = dj_database_url.parse(
         DATABASE_URL, conn_max_age=600, conn_health_checks=True,
     )
+    # Neon's connection string carries extra query params (notably
+    # channel_binding, sometimes with stray trailing whitespace) that
+    # dj-database-url forwards as strict psycopg keywords — psycopg then rejects
+    # e.g. channel_binding="require ". Drop channel_binding (sslmode=require is
+    # sufficient) and trim whitespace from the rest.
+    _db['OPTIONS'] = {
+        k: (v.strip() if isinstance(v, str) else v)
+        for k, v in (_db.get('OPTIONS') or {}).items()
+        if k != 'channel_binding'
+    }
+    # Prefer Neon's direct endpoint over its PgBouncer pooler, which doesn't play
+    # well with psycopg's server-side prepared statements under load.
+    _host = _db.get('HOST') or ''
+    if _host.endswith('.neon.tech') and '-pooler' in _host:
+        _db['HOST'] = _host.replace('-pooler', '')
+    DATABASES['default'] = _db
 
 
 # Password validation

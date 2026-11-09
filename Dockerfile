@@ -5,8 +5,11 @@ FROM python:3.12-slim
 # opencv-python-headless still needs glib at runtime. Everything else installs
 # from manylinux wheels (numpy, onnxruntime, pillow, psycopg[binary]), so no
 # compiler/toolchain is needed — keeps the image small.
+# The package was renamed libglib2.0-0 -> libglib2.0-0t64 in Debian 13 (trixie),
+# so try both to stay compatible across slim base revisions.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libglib2.0-0 \
+    && (apt-get install -y --no-install-recommends libglib2.0-0 \
+        || apt-get install -y --no-install-recommends libglib2.0-0t64) \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PYTHONUNBUFFERED=1 \
