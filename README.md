@@ -2,7 +2,7 @@
 
 > **Find the homes that *don't* have solar panels — instant, qualified leads for solar installers.**
 
-[![Live Demo](https://img.shields.io/badge/▶_Live_Demo-online-brightgreen?style=for-the-badge)](https://solar-lead-finder.onrender.com)
+[![Live Demo](https://img.shields.io/badge/▶_Live_Demo-Cloud_Run-brightgreen?style=for-the-badge)](https://solar-lead-finder-vrxzqxauuq-uc.a.run.app)
 
 [![Python](https://img.shields.io/badge/Python-3.14-blue.svg)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/Django-6.0-092E20.svg)](https://www.djangoproject.com/)
@@ -21,12 +21,14 @@ Door-to-door and cold-call solar sales waste enormous time on homes that *alread
 The per-home view shows the **transparent 5-stage detection breakdown** — every scan reveals exactly *why* a rooftop was or wasn't flagged, with a live score bar for each computer-vision stage.
 
 ## 🌐 Live demo
-### ▶ [**solar-lead-finder.onrender.com**](https://solar-lead-finder.onrender.com)
-Running live on Render's free tier — give it ~50s to wake if it's been idle.
 
+### ▶ [**Live on Google Cloud Run**](https://solar-lead-finder-vrxzqxauuq-uc.a.run.app)
+The production deployment — **Cloud Run** (scale-to-zero) backed by **Neon Postgres**, with rooftop images in **Google Cloud Storage**, live Google Maps imagery, and the MobileNetV3 classifier. Give it a few seconds to wake from a cold start. Full walkthrough in [**`DEPLOY-GCP.md`**](DEPLOY-GCP.md).
+
+### 🚀 Deploy your own in one click (Render)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/dgdagreat/solar-lead-finder)
 
-Deploy your own in one click — config lives in [`render.yaml`](render.yaml). It runs on **mock data** out of the box (no API keys); add a `GOOGLE_STREET_VIEW_API_KEY` for live satellite imagery + detection.
+Spins up on Render's free tier with **mock data** out of the box (no API keys) — config lives in [`render.yaml`](render.yaml). Add a `GOOGLE_STREET_VIEW_API_KEY` for live satellite imagery + detection, and a `DATABASE_URL` for persistent Postgres. For a full Cloud Run setup (managed Postgres + object storage + secrets), follow [`DEPLOY-GCP.md`](DEPLOY-GCP.md).
 
 ## ✨ Features
 - **Search recently-sold homes** by city / ZIP, with an optional **radius** filter (Realty-in-US via RapidAPI).
@@ -53,11 +55,12 @@ A home is marked **has-solar** only when the weighted score clears a threshold *
 The app uses a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.py)) when its bundled ONNX model is available, with the five-stage CV detector as a fallback. Before assigning either solar status or a lead, it checks that a plausible roof is near the address point in the same image; if that check fails, the home is marked **Roof Unverified** and gets no solar or lead label. On an independent, geographically separated test set of 200 roof images, the classifier reached 81.5% balanced accuracy with a decision cutoff selected on the validation set. This is a Queens 2018 roof-centered result; live Google Maps accuracy has not been measured. The app's confirmation flow can collect in-domain labels for future training.
 
 ## 🛠️ Tech stack
-- **Backend:** Django 6 · Django REST Framework · SQLite
+- **Backend:** Django 6 · Django REST Framework · SQLite *(dev)* · Postgres *(prod)*
 - **Vision:** OpenCV · NumPy · Pillow · *(optional)* PyTorch / torchvision
 - **Data / APIs:** Google Maps Static API · Realty-in-US (RapidAPI) · ATTOM (fallback)
 - **Frontend:** Django templates · Bootstrap 5
 - **Async *(optional)*:** Celery · Redis
+- **Deploy:** Docker · Google Cloud Run · Neon Postgres · Google Cloud Storage · Secret Manager · gunicorn + WhiteNoise *(see [`DEPLOY-GCP.md`](DEPLOY-GCP.md))*
 
 ## 🗂️ Project layout
 ```
