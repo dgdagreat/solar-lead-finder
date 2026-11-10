@@ -30,11 +30,26 @@ CLASSES    = ["no_solar", "solar"]   # ImageFolder-sorted order → indices 0, 1
 # Selected on the independent validation split to maximize balanced accuracy.
 # The exported model's softmax score is not calibrated probability.
 SOLAR_DECISION_THRESHOLD = 0.42
+SOLAR_HIGH_CONFIDENCE_THRESHOLD = 0.70
+MIN_PANEL_STRUCTURE_SCORE = 0.30
 
 
 def is_solar_probability(prob: float) -> bool:
     """Apply the validation-tuned decision cutoff to a model score."""
     return prob >= SOLAR_DECISION_THRESHOLD
+
+
+def is_solar_supported(prob: float, stage_scores: dict) -> bool:
+    """Require visible panel structure for medium CNN scores; allow strong scores."""
+    if prob < SOLAR_DECISION_THRESHOLD:
+        return False
+    if prob >= SOLAR_HIGH_CONFIDENCE_THRESHOLD:
+        return True
+    structure = max(
+        stage_scores.get("grid_line_detection", 0.0),
+        stage_scores.get("rectangle_clustering", 0.0),
+    )
+    return structure >= MIN_PANEL_STRUCTURE_SCORE
 
 _model  = None    # lazily-loaded, cached
 _onnx_session = None

@@ -115,8 +115,8 @@
         <div class="card stat-card shadow-sm text-white" style="background: linear-gradient(135deg, #8e6c2f, #6f531f);">
             <div class="card-body text-center py-3 position-relative">
                 <div class="fs-2 fw-bold">{{ unverified }}</div>
-                <div class="small fw-semibold">🏠 Roof Unverified</div>
-                <div class="small opacity-75">No solar label assigned</div>
+                <div class="small fw-semibold">🔎 Needs Review</div>
+                <div class="small opacity-75">Roof or solar scan is uncertain</div>
             </div>
         </div>
     </div>
@@ -150,7 +150,7 @@
         ☀️ Has Solar ({{ has_solar }})
     </a>
     <a href="?{% if show_all %}scope=all&{% endif %}status=unverified" class="btn btn-sm {% if active_filter == 'unverified' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
-        🏠 Roof Unverified ({{ unverified }})
+        🔎 Needs Review ({{ unverified }})
     </a>
     <a href="?{% if show_all %}scope=all&{% endif %}status=unknown" class="btn btn-sm {% if active_filter == 'unknown' %}btn-info{% else %}btn-outline-info{% endif %}">
         ⏳ Pending ({{ pending }})
@@ -193,7 +193,7 @@
                     {% elif home.solar_status == 'error' %}
                         <span class="badge bg-danger">Scan Error</span>
                     {% elif home.solar_status == 'unverified' %}
-                        <span class="badge bg-secondary">Roof Unverified</span>
+                        <span class="badge bg-warning text-dark">Needs Review</span>
                     {% else %}
                         <span class="badge bg-info text-dark">Scanning...</span>
                     {% endif %}
@@ -212,7 +212,11 @@
                 <!-- Verification warning -->
                 {% if home.solar_status == 'unverified' %}
                 <div class="alert alert-warning py-1 px-2 mt-1 mb-1" style="font-size:0.75rem;">
-                    {{ home.scan_detail.roof_verification.reason }} No solar or lead label assigned until the target roof is verified.
+                    {% if home.scan_detail.review_reason %}
+                        {{ home.scan_detail.review_reason }}
+                    {% else %}
+                        {{ home.scan_detail.roof_verification.reason }} No solar or lead label assigned until the target roof is verified.
+                    {% endif %}
                 </div>
                 {% elif home.notes %}
                 <div class="alert alert-warning py-1 px-2 mt-1 mb-1" style="font-size:0.75rem;">

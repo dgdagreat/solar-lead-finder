@@ -47,8 +47,13 @@
                     </div>
                 {% elif home.solar_status == 'unverified' %}
                     <div class="alert alert-warning py-2 mt-2">
-                        <strong>🏠 Target roof unverified.</strong>
-                        {{ home.scan_detail.roof_verification.reason }} No solar or lead label was assigned. Check the highlighted image or adjust the address.
+                        {% if home.scan_detail.review_reason %}
+                            <strong>🔎 Solar scan needs review.</strong>
+                            {{ home.scan_detail.review_reason }} No solar or lead label was assigned.
+                        {% else %}
+                            <strong>🏠 Target roof unverified.</strong>
+                            {{ home.scan_detail.roof_verification.reason }} No solar or lead label was assigned. Check the highlighted image or adjust the address.
+                        {% endif %}
                     </div>
                 {% endif %}
 
