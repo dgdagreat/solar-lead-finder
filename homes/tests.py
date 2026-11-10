@@ -171,6 +171,33 @@ class DashboardViewTests(TestCase):
         response = client.get("/")
         self.assertContains(response, "Live property search is not configured.")
 
+    @patch("homes.views.fetch_recently_sold_homes", side_effect=RuntimeError("provider failure"))
+    def test_unexpected_provider_failure_redirects_with_error(self, _fetch):
+        client = Client()
+        response = client.post("/search/", {"city": "Sacramento", "state": "CA"})
+
+        self.assertEqual(response.status_code, 302)
+        response = client.get("/")
+        self.assertContains(response, "The property search could not be completed.")
+
+    @patch("homes.views.process_home_sync", side_effect=RuntimeError("scan failure"))
+    @patch("homes.views.fetch_recently_sold_homes")
+    def test_one_scan_failure_does_not_fail_search_or_mark_home_as_lead(
+        self, mock_fetch, _process
+    ):
+        home = services._mock_home_data("Glendale", "CA")[0]
+        mock_fetch.return_value = [home]
+        client = Client()
+
+        response = client.post("/search/", {"city": "Glendale", "state": "CA"})
+
+        self.assertEqual(response.status_code, 302)
+        home.refresh_from_db()
+        self.assertEqual(home.solar_status, "error")
+        self.assertFalse(home.is_lead)
+        response = client.get("/")
+        self.assertContains(response, "1 satellite scan(s) could not finish")
+
     def test_dashboard_discloses_unconfigured_live_search(self):
         with override_settings(DEBUG=False, RAPIDAPI_KEY="", ATTOM_API_KEY=""):
             response = Client().get("/")

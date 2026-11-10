@@ -1,10 +1,13 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.conf import settings
+import logging
 from .models import Home
 from .services import fetch_recently_sold_homes, PropertySearchUnavailable
 from detector.tasks import process_home_sync
 from detector.reference_comparator import add_reference
+
+logger = logging.getLogger(__name__)
 
 
 SUGGESTED_CITIES = [
@@ -108,6 +111,19 @@ def search_homes(request):
         except PropertySearchUnavailable as exc:
             messages.error(request, str(exc), extra_tags='danger')
             return redirect('dashboard')
+        except Exception as exc:
+            # Provider and response parsing failures must return a useful page,
+            # not Django's generic 500. Log the exception type without request
+            # headers or provider credentials.
+            logger.error(
+                "Unexpected property search failure (%s)", type(exc).__name__
+            )
+            messages.error(
+                request,
+                'The property search could not be completed. Please try again.',
+                extra_tags='danger',
+            )
+            return redirect('dashboard')
 
         if homes:
             # Always reset and reprocess so stale results are cleared
@@ -116,7 +132,24 @@ def search_homes(request):
                 home.solar_confidence = None
                 home.is_lead = False
                 home.save()
-                process_home_sync(home.id)
+                try:
+                    process_home_sync(home.id)
+                except Exception as exc:
+                    # A single satellite/model failure should not discard the
+                    # whole search result set or leave the POST as a 500.
+                    logger.error(
+                        "Unexpected solar scan failure for home %s (%s)",
+                        home.id,
+                        type(exc).__name__,
+                    )
+                    home.solar_status = 'error'
+                    home.solar_confidence = None
+                    home.is_lead = False
+                    home.scan_detail = {
+                        "method": "error",
+                        "error": "Satellite scan failed unexpectedly. Retry this home.",
+                    }
+                    home.save()
 
             # Scope the dashboard to just this search
             request.session['current_home_ids'] = [h.id for h in homes]
@@ -137,7 +170,15 @@ def search_homes(request):
                     'not results for the searched city; radius was not applied.'
                 )
             else:
-                messages.success(request, f'Found {len(homes)} homes and ran solar detection!')
+                failed_scans = sum(home.solar_status == 'error' for home in homes)
+                if failed_scans:
+                    messages.warning(
+                        request,
+                        f'Found {len(homes)} homes. {failed_scans} satellite scan(s) '
+                        'could not finish; retry those homes from the dashboard.',
+                    )
+                else:
+                    messages.success(request, f'Found {len(homes)} homes and ran solar detection!')
         else:
             messages.warning(
                 request,
