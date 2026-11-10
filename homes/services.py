@@ -7,6 +7,7 @@ Priority order:
   3. Mock data                 (development fallback)
 """
 import math
+import re
 import requests
 from datetime import datetime
 from django.conf import settings
@@ -144,6 +145,10 @@ def _fetch_from_rapidapi(city: str, state: str, zip_code: str, max_results: int,
         for prop in properties:
             if center and radius_miles and _beyond_radius(prop, center, radius_miles):
                 continue
+            if not _matches_requested_location(
+                prop, city, state, zip_code, allow_neighboring_cities=bool(radius_miles)
+            ):
+                continue
             home = _parse_rapidapi_property(prop, city, state)
             if home:
                 homes.append(home)
@@ -171,9 +176,10 @@ def _parse_rapidapi_property(prop: dict, default_city: str, default_state: str) 
         if not street:
             return None
 
-        # Only single-family homes — skip condos, land, multi-family
-        prop_type = prop.get("description", {}).get("type", "")
-        if prop_type and prop_type not in ("single_family", "mobile", "farm"):
+        # Only accept known residential structures; unknown types can include
+        # lots or commercial buildings and are too risky for roof lead scoring.
+        prop_type = (prop.get("description") or {}).get("type", "")
+        if (prop_type or "").strip().casefold() not in ("single_family", "mobile"):
             logger.debug(f"Skipping {street} — type: {prop_type}")
             return None
 
@@ -208,6 +214,33 @@ def _parse_rapidapi_property(prop: dict, default_city: str, default_state: str) 
     except Exception as e:
         logger.error(f"Error parsing property: {e}")
         return None
+
+
+def _normalize_location(value: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", (value or "").casefold()).split())
+
+
+def _matches_requested_location(prop: dict, city: str, state: str, zip_code: str = None,
+                                allow_neighboring_cities: bool = False) -> bool:
+    """Fail closed on cross-state, wrong-ZIP, or wrong-city provider results.
+
+    Neighboring city names are allowed only when the caller will enforce a
+    geocoded radius against the property's coordinates.
+    """
+    address = ((prop.get("location") or {}).get("address") or {})
+    result_state = address.get("state_code") or address.get("state") or ""
+    if _normalize_location(result_state) != _normalize_location(state):
+        return False
+
+    if zip_code:
+        requested_zip = re.sub(r"\D", "", zip_code)[:5]
+        result_zip = re.sub(r"\D", "", address.get("postal_code") or "")[:5]
+        return bool(len(requested_zip) == 5 and result_zip == requested_zip)
+
+    result_city = address.get("city") or ""
+    if allow_neighboring_cities:
+        return bool(_normalize_location(result_city))
+    return _normalize_location(result_city) == _normalize_location(city)
 
 
 # ──────────────────────────────────────────────────────────────────────────
