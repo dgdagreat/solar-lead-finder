@@ -46,6 +46,20 @@ class RooftopVerificationTests(TestCase):
         self.assertIn("vegetation-heavy", verification["reason"])
         self.assertGreater(verification["vegetation_fraction"], 0.10)
 
+    def test_shaded_olive_hedge_is_not_misclassified_as_a_roof(self):
+        # Very dark satellite shadows shift foliage toward olive hues that fall
+        # outside the ordinary green range while still passing the brown-roof mask.
+        hsv = np.empty((640, 640, 3), dtype=np.uint8)
+        hsv[:] = (60, 180, 100)
+        cv2.ellipse(hsv, (320, 320), (90, 45), 0, 0, 360, (24, 130, 60), -1)
+        image = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+        _, verification = _annotate_rooftop(image)
+
+        self.assertFalse(verification["in_frame"])
+        self.assertIn("vegetation-heavy", verification["reason"])
+        self.assertGreater(verification["vegetation_fraction"], 0.10)
+
     def test_known_roof_images_pass_roof_verification(self):
         for fixture in ("solar_rooftop.jpg", "no_solar_rooftop.jpg"):
             image = cv2.imread(str(FIXTURES / fixture))

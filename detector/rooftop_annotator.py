@@ -302,11 +302,20 @@ def _verify_in_frame(img_hsv, target_mask: np.ndarray, filled_area: int,
     candidate = max(contours, key=cv2.contourArea)
     region = np.zeros((h, w), dtype=np.uint8)
     cv2.drawContours(region, [candidate], -1, 255, thickness=cv2.FILLED)
-    vegetation = cv2.inRange(
+    green_vegetation = cv2.inRange(
         img_hsv,
         np.array([30, 20, 25], dtype=np.uint8),
         np.array([90, 255, 255], dtype=np.uint8),
     )
+    # Deeply shaded hedges can lose their green hue and shift to saturated
+    # olive (roughly OpenCV hue 20–29). Keep this range narrow so terracotta
+    # roofs stay outside the vegetation check.
+    olive_vegetation = cv2.inRange(
+        img_hsv,
+        np.array([20, 80, 25], dtype=np.uint8),
+        np.array([29, 255, 255], dtype=np.uint8),
+    )
+    vegetation = cv2.bitwise_or(green_vegetation, olive_vegetation)
     region_pixels = max(cv2.countNonZero(region), 1)
     vegetation_fraction = cv2.countNonZero(
         cv2.bitwise_and(vegetation, region)
