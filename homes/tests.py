@@ -53,10 +53,52 @@ class ParseRapidApiTests(TestCase):
                 "description": {"type": "condos"}}
         self.assertIsNone(services._parse_rapidapi_property(prop, "LA", "CA"))
 
+    def test_missing_or_nonresidential_property_type_is_skipped(self):
+        for prop_type in ("", "farm", "commercial"):
+            with self.subTest(prop_type=prop_type):
+                prop = {"location": {"address": {"line": "9 Unknown Rd"}},
+                        "description": {"type": prop_type}}
+                self.assertIsNone(services._parse_rapidapi_property(prop, "LA", "CA"))
+
     def test_missing_street_is_skipped(self):
         prop = {"location": {"address": {"line": ""}},
                 "description": {"type": "single_family"}}
         self.assertIsNone(services._parse_rapidapi_property(prop, "LA", "CA"))
+
+
+class SearchLocationValidationTests(TestCase):
+    def _property(self, city="Sacramento", state="CA", zip_code="95814"):
+        return {"location": {"address": {
+            "city": city, "state_code": state, "postal_code": zip_code,
+        }}}
+
+    def test_requires_city_and_state_match_without_radius(self):
+        self.assertTrue(services._matches_requested_location(
+            self._property(city="Sacramento."), "Sacramento", "CA"
+        ))
+        self.assertFalse(services._matches_requested_location(
+            self._property(city="Los Angeles"), "Sacramento", "CA"
+        ))
+        self.assertFalse(services._matches_requested_location(
+            self._property(state="NV"), "Sacramento", "CA"
+        ))
+
+    def test_neighboring_city_allowed_only_for_radius_checked_search(self):
+        property_in_neighboring_city = self._property(city="West Sacramento")
+        self.assertFalse(services._matches_requested_location(
+            property_in_neighboring_city, "Sacramento", "CA"
+        ))
+        self.assertTrue(services._matches_requested_location(
+            property_in_neighboring_city, "Sacramento", "CA", allow_neighboring_cities=True
+        ))
+
+    def test_requested_zip_must_match(self):
+        self.assertTrue(services._matches_requested_location(
+            self._property(zip_code="95814-1234"), "Sacramento", "CA", "95814"
+        ))
+        self.assertFalse(services._matches_requested_location(
+            self._property(zip_code="90001"), "Sacramento", "CA", "95814"
+        ))
 
 
 class MockDataTests(TestCase):
