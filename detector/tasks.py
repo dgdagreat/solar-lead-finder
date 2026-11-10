@@ -87,12 +87,40 @@ def process_home_sync(home_id: int):
             pred = learned_cnn.predict(raw_image)
             if pred:
                 result.setdefault("details", {})["cnn_prob"] = pred["prob"]
-                result["has_solar"]  = pred["has_solar"]
                 result["confidence"] = pred["prob"]
-                result["method"]     = "mobilenetv3_cnn"
-                result["stages_triggered"] = 0
-                logger.info(f"CNN override [mobilenetv3]: "
-                            f"P(solar)={pred['prob']:.3f} → has_solar={pred['has_solar']}")
+                cnn_supported = learned_cnn.is_solar_supported(
+                    pred["prob"], result.get("stage_scores", {})
+                )
+                if pred["has_solar"] and not cnn_supported:
+                    # Medium CNN scores need independent panel-like grid or
+                    # repeated-rectangle evidence; shadows tend to lack it.
+                    result["method"] = "solar_review"
+                    result["review_reason"] = (
+                        "Solar scan needs review: the image classifier found a "
+                        "possible match, but the image lacks enough repeated "
+                        "panel-grid or rectangle structure. Shadows can resemble "
+                        "panels. Verify the roof image manually."
+                    )
+                    logger.info(
+                        "CNN solar candidate lacks structure: P(solar)=%.3f grid=%.3f rectangles=%.3f; review required",
+                        pred["prob"],
+                        result.get("stage_scores", {}).get("grid_line_detection", 0.0),
+                        result.get("stage_scores", {}).get("rectangle_clustering", 0.0),
+                    )
+                elif not pred["has_solar"] and result.get("has_solar"):
+                    # The two independent classifiers disagree; neither a
+                    # solar label nor a lead is safe to assign automatically.
+                    result["method"] = "solar_review"
+                    result["review_reason"] = (
+                        "Solar scan needs review: the image classifier and "
+                        "panel-structure checks disagree. Verify the roof image manually."
+                    )
+                else:
+                    result["has_solar"] = cnn_supported
+                    result["method"] = "mobilenetv3_cnn"
+                    result["stages_triggered"] = 0
+                    logger.info(f"CNN agrees with physical checks: "
+                                f"P(solar)={pred['prob']:.3f} → has_solar={pred['has_solar']}")
     except Exception as e:
         logger.warning(f"CNN stage skipped: {e}")
 
@@ -101,6 +129,9 @@ def process_home_sync(home_id: int):
         home.solar_status = 'error'
         home.is_lead = False
     elif result.get("method") == "roof_unverified":
+        home.solar_status = 'unverified'
+        home.is_lead = False
+    elif result.get("method") == "solar_review":
         home.solar_status = 'unverified'
         home.is_lead = False
     elif result["has_solar"]:
@@ -121,6 +152,8 @@ def process_home_sync(home_id: int):
         "stage_scores": result.get("stage_scores", {}),
         "details":      result.get("details", {}),
     }
+    if result.get("review_reason"):
+        home.scan_detail["review_reason"] = result["review_reason"]
     if result.get("roof_verification") or roof_verification:
         home.scan_detail["roof_verification"] = (
             result.get("roof_verification") or roof_verification
@@ -129,7 +162,7 @@ def process_home_sync(home_id: int):
         home.scan_detail["error"] = result.get("error", "Satellite image scan failed.")
     home.save()
 
-    if result.get("method") == "mobilenetv3_cnn":
+    if result.get("method") in ("mobilenetv3_cnn", "solar_review"):
         logger.info(f"Home #{home_id} → {home.solar_status} | model_score={home.solar_confidence}%")
     else:
         logger.info(

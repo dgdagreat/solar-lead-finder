@@ -13,7 +13,7 @@ from detector.solar_detector import (
     detect_solar_panels_from_url, _error_result)
 from detector import reference_comparator
 from detector.tasks import process_home_sync
-from detector.cnn import is_solar_probability
+from detector.cnn import is_solar_probability, is_solar_supported
 from detector.rooftop_annotator import _annotate_rooftop
 
 FIXTURES = Path(__file__).resolve().parent / "test_data"
@@ -23,6 +23,11 @@ class CNNDecisionThresholdTests(TestCase):
     def test_validation_tuned_threshold_classifies_scores(self):
         self.assertFalse(is_solar_probability(0.419))
         self.assertTrue(is_solar_probability(0.42))
+
+    def test_medium_cnn_score_needs_grid_or_repeated_rectangle_evidence(self):
+        self.assertFalse(is_solar_supported(0.60, {}))
+        self.assertTrue(is_solar_supported(0.60, {"grid_line_detection": 0.30}))
+        self.assertTrue(is_solar_supported(0.70, {}))
 
 
 class RooftopVerificationTests(TestCase):
@@ -222,7 +227,7 @@ class ScanTaskTests(TestCase):
             "Satellite imagery service returned HTTP 403",
         )
 
-    def test_cnn_overrides_heuristic_using_the_decoded_scan_image(self):
+    def test_cnn_disagreement_requires_manual_review_using_the_decoded_scan_image(self):
         raw_image = Image.new("RGB", (640, 640), (80, 80, 80))
         heuristic = {
             "method": "multi_stage_cv_v2", "has_solar": False,
@@ -234,7 +239,7 @@ class ScanTaskTests(TestCase):
             patch("detector.tasks.annotate_rooftop_image", return_value=("home_images/annotated.jpg", {"in_frame": True, "reason": ""})) as annotate,
             patch("detector.tasks.detect_solar_panels_from_url", return_value=(heuristic, raw_image)) as scan,
             patch("detector.cnn.is_available", return_value=True),
-            patch("detector.cnn.predict", return_value={"prob": 0.8, "has_solar": True}) as predict,
+            patch("detector.cnn.predict", return_value={"prob": 0.60, "has_solar": True}) as predict,
         ):
             process_home_sync(self.home.id)
 
@@ -242,9 +247,32 @@ class ScanTaskTests(TestCase):
         annotate.assert_called_once_with(self.home, raw_image)
         predict.assert_called_once_with(raw_image)
         self.home.refresh_from_db()
+        self.assertEqual(self.home.solar_status, "unverified")
+        self.assertFalse(self.home.is_lead)
+        self.assertEqual(self.home.solar_confidence, 60.0)
+        self.assertEqual(self.home.stages_triggered, 1)
+        self.assertEqual(self.home.scan_detail["method"], "solar_review")
+        self.assertIn("lacks enough repeated", self.home.scan_detail["review_reason"])
+
+    def test_cnn_and_physical_panel_checks_must_agree_to_assign_solar(self):
+        raw_image = Image.new("RGB", (640, 640), (80, 80, 80))
+        heuristic = {
+            "method": "multi_stage_cv_v2", "has_solar": True,
+            "confidence": 0.8, "stages_triggered": 3,
+            "stage_scores": {"grid_line_detection": 0.8}, "details": {},
+        }
+        with (
+            patch("detector.tasks.get_static_map_url", return_value="https://maps.example/tile"),
+            patch("detector.tasks.annotate_rooftop_image", return_value=(None, {"in_frame": True, "reason": ""})),
+            patch("detector.tasks.detect_solar_panels_from_url", return_value=(heuristic, raw_image)),
+            patch("detector.cnn.is_available", return_value=True),
+            patch("detector.cnn.predict", return_value={"prob": 0.8, "has_solar": True}),
+        ):
+            process_home_sync(self.home.id)
+
+        self.home.refresh_from_db()
         self.assertEqual(self.home.solar_status, "has_solar")
-        self.assertEqual(self.home.solar_confidence, 80.0)
-        self.assertIsNone(self.home.stages_triggered)
+        self.assertFalse(self.home.is_lead)
         self.assertEqual(self.home.scan_detail["method"], "mobilenetv3_cnn")
 
     def test_unverified_roof_cannot_become_a_solar_label_or_lead(self):

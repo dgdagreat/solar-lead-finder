@@ -4,7 +4,7 @@ from django.db import models
 class Home(models.Model):
     SOLAR_STATUS = [
         ('unknown', 'Unknown'),
-        ('unverified', 'Roof unverified'),
+        ('unverified', 'Needs manual review'),
         ('has_solar', 'Has Solar'),
         ('no_solar', 'No Solar'),
         ('error', 'Error'),
