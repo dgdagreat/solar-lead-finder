@@ -31,6 +31,9 @@ def dashboard(request):
     search_label = request.session.get('current_search_label', '')
 
     homes  = Home.objects.all()
+    if not settings.DEBUG:
+        # Keep legacy/local demo rows out of production search results and stats.
+        homes = homes.filter(is_demo=False)
     scoped = bool(current_ids) and not show_all
     if scoped:
         homes = homes.filter(id__in=current_ids)
@@ -66,7 +69,8 @@ def dashboard(request):
         'scoped': scoped,
         'show_all': show_all,
         'search_label': search_label,
-        'all_count': Home.objects.count(),
+        'all_count': (Home.objects.count() if settings.DEBUG
+                      else Home.objects.filter(is_demo=False).count()),
         'suggested_cities': SUGGESTED_CITIES,
         'search_mode': search_mode,
     }

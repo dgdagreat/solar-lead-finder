@@ -29,6 +29,8 @@ class Home(models.Model):
 
     # Lead tracking
     is_lead = models.BooleanField(default=False)
+    # Fixed local sample records must never be confused with live property data.
+    is_demo = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
