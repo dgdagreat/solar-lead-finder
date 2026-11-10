@@ -6,6 +6,7 @@ service starts. Keeping network calls out of the build avoids baking transient
 satellite API failures into the generated SQLite database.
 """
 from django.core.management.base import BaseCommand
+from django.conf import settings
 from homes.models import Home
 from homes.services import _mock_home_data
 from detector.tasks import process_home_sync
@@ -35,6 +36,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
+        if not settings.DEBUG:
+            self.stdout.write("Skipping demo seed/scan outside DEBUG mode.")
+            return
+
         if not Home.objects.exists():
             _mock_home_data("", "")
             self.stdout.write("Seeded demo homes.")

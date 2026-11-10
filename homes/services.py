@@ -321,7 +321,8 @@ def _mock_home_data(city: str, state: str):
             address=data["address"],
             city=data["city"],
             state=data["state"],
-            defaults={"zip_code": data["zip_code"], "sale_price": data["sale_price"]}
+            defaults={"zip_code": data["zip_code"], "sale_price": data["sale_price"],
+                      "is_demo": True}
         )
         homes.append(home)
     return homes

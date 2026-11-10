@@ -133,3 +133,24 @@ class DashboardViewTests(TestCase):
         with override_settings(DEBUG=False, RAPIDAPI_KEY="", ATTOM_API_KEY=""):
             response = Client().get("/")
         self.assertContains(response, "Live property search is not configured")
+
+    def test_production_dashboard_hides_legacy_demo_homes(self):
+        Home.objects.create(
+            address="3421 Ramona Ave", city="San Francisco", state="CA",
+            zip_code="95826", is_demo=True,
+        )
+        Home.objects.create(
+            address="88 Real St", city="Sacramento", state="CA", zip_code="95814",
+        )
+
+        with override_settings(DEBUG=False, RAPIDAPI_KEY="", ATTOM_API_KEY=""):
+            response = Client().get("/")
+
+        self.assertNotContains(response, "3421 Ramona Ave")
+        self.assertContains(response, "88 Real St")
+        self.assertEqual(response.context["total"], 1)
+        self.assertEqual(response.context["all_count"], 1)
+
+    def test_mock_data_is_marked_demo(self):
+        homes = services._mock_home_data("Glendale", "CA")
+        self.assertTrue(all(home.is_demo for home in homes))
