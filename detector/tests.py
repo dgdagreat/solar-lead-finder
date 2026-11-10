@@ -24,10 +24,11 @@ class CNNDecisionThresholdTests(TestCase):
         self.assertFalse(is_solar_probability(0.419))
         self.assertTrue(is_solar_probability(0.42))
 
-    def test_medium_cnn_score_needs_grid_or_repeated_rectangle_evidence(self):
+    def test_all_cnn_scores_need_grid_or_repeated_rectangle_evidence(self):
         self.assertFalse(is_solar_supported(0.60, {}))
         self.assertTrue(is_solar_supported(0.60, {"grid_line_detection": 0.30}))
-        self.assertTrue(is_solar_supported(0.70, {}))
+        self.assertFalse(is_solar_supported(0.95, {}))
+        self.assertTrue(is_solar_supported(0.95, {"rectangle_clustering": 0.30}))
 
 
 class RooftopVerificationTests(TestCase):
