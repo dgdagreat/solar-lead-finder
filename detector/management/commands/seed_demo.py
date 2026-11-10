@@ -45,7 +45,7 @@ class Command(BaseCommand):
         homes = Home.objects.filter(address__in=DEMO_ADDRESSES)
         homes = [home for home in homes if (
             home.solar_status in ("unknown", "error")
-            or (home.scan_detail or {}).get("roof_verification", {}).get("legacy_scan")
+            or not (home.scan_detail or {}).get("roof_verification", {}).get("vegetation_checked")
         )]
         scanned = 0
         for home in homes:

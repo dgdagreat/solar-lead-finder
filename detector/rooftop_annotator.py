@@ -31,6 +31,7 @@ MAX_CENTRE_DIST   = 100   # px — avoid accepting a neighboring roof across a s
 MIN_ROOF_AREA     = 1200  # px² — smallest acceptable rooftop
 MAX_ROOF_AREA     = 200000# px² — largest acceptable rooftop
 ROOF_WINDOW_RADIUS = 140  # px — clip the highlight to a single-home window around centre
+MAX_VEGETATION_FRACTION = 0.10  # reject shadowed foliage that looks grey in the roof mask
 HIGHLIGHT_COLOR   = (30, 215, 255)   # BGR: vivid yellow-orange
 HIGHLIGHT_ALPHA   = 0.30             # fill opacity
 OUTLINE_THICKNESS = 3
@@ -135,7 +136,10 @@ def _annotate_rooftop(img_bgr: np.ndarray) -> tuple[np.ndarray, dict]:
     filled_area = int(cv2.countNonZero(target))
 
     # ── Step 3: Verify property is in frame ───────────────────────────────
-    verification = _verify_in_frame(img_hsv, filled_area, h, w, cx, cy)
+    verification = _verify_in_frame(img_hsv, target, filled_area, h, w, cx, cy)
+    # Version marker lets the GCP demo recheck images annotated by the older,
+    # foliage-blind verifier exactly once after this safeguard is deployed.
+    verification["vegetation_checked"] = True
 
     # ── Step 4: Draw highlight ────────────────────────────────────────────
     if filled_area >= MIN_ROOF_AREA:
@@ -266,7 +270,7 @@ def _flood_fill_roof(img_bgr: np.ndarray, cx: int, cy: int) -> tuple[np.ndarray,
     return np.zeros((h, w), dtype=np.uint8), 0
 
 
-def _verify_in_frame(img_hsv, filled_area: int,
+def _verify_in_frame(img_hsv, target_mask: np.ndarray, filled_area: int,
                      h: int, w: int, cx: int, cy: int) -> dict:
     """
     Return {"in_frame": bool, "reason": str}.
@@ -286,7 +290,39 @@ def _verify_in_frame(img_hsv, filled_area: int,
             "reason": "No rooftop detected at address centre — may be a road, tree, or open lot"
         }
 
-    return {"in_frame": True, "reason": ""}
+    # Dark leaves in shade overlap the broad grey-roof color range. Inspect the
+    # original pixels inside the candidate outline as a separate vegetation
+    # check; if too much is green, don't call it a roof even if its shadow passed
+    # the color mask.
+    contours, _ = cv2.findContours(target_mask, cv2.RETR_EXTERNAL,
+                                   cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return {"in_frame": False, "reason": "No roof-shaped region found near the address centre"}
+
+    candidate = max(contours, key=cv2.contourArea)
+    region = np.zeros((h, w), dtype=np.uint8)
+    cv2.drawContours(region, [candidate], -1, 255, thickness=cv2.FILLED)
+    vegetation = cv2.inRange(
+        img_hsv,
+        np.array([30, 20, 25], dtype=np.uint8),
+        np.array([90, 255, 255], dtype=np.uint8),
+    )
+    region_pixels = max(cv2.countNonZero(region), 1)
+    vegetation_fraction = cv2.countNonZero(
+        cv2.bitwise_and(vegetation, region)
+    ) / region_pixels
+    if vegetation_fraction > MAX_VEGETATION_FRACTION:
+        return {
+            "in_frame": False,
+            "reason": "The target area looks vegetation-heavy, not like a roof",
+            "vegetation_fraction": round(vegetation_fraction, 3),
+        }
+
+    return {
+        "in_frame": True,
+        "reason": "",
+        "vegetation_fraction": round(vegetation_fraction, 3),
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════

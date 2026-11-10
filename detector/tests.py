@@ -32,6 +32,20 @@ class RooftopVerificationTests(TestCase):
             _, verification = _annotate_rooftop(image)
             self.assertFalse(verification["in_frame"])
 
+    def test_muted_green_hedge_that_passed_grey_roof_mask_is_rejected(self):
+        # Shadowed vegetation can look grey enough to pass the old roof-color
+        # mask; its original green pixels must still block solar classification.
+        hsv = np.empty((640, 640, 3), dtype=np.uint8)
+        hsv[:] = (60, 180, 100)  # green yard
+        cv2.ellipse(hsv, (320, 320), (90, 45), 0, 0, 360, (60, 30, 70), -1)
+        image = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+        _, verification = _annotate_rooftop(image)
+
+        self.assertFalse(verification["in_frame"])
+        self.assertIn("vegetation-heavy", verification["reason"])
+        self.assertGreater(verification["vegetation_fraction"], 0.10)
+
     def test_known_roof_images_pass_roof_verification(self):
         for fixture in ("solar_rooftop.jpg", "no_solar_rooftop.jpg"):
             image = cv2.imread(str(FIXTURES / fixture))
