@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 
 from homes.models import Home
 from homes import services
@@ -28,9 +28,9 @@ class BeyondRadiusTests(TestCase):
         self.assertFalse(services._beyond_radius(oakland, sf, 10))   # keep
         self.assertTrue(services._beyond_radius(oakland, sf, 5))     # drop
 
-    def test_missing_coords_fail_open(self):
-        # No coordinates -> don't filter the home out
-        self.assertFalse(services._beyond_radius({"location": {}}, (37.7, -122.4), 5))
+    def test_missing_coords_fail_closed(self):
+        # Without coordinates the radius cannot be verified, so omit the home.
+        self.assertTrue(services._beyond_radius({"location": {}}, (37.7, -122.4), 5))
 
 
 class ParseRapidApiTests(TestCase):
@@ -64,6 +64,34 @@ class MockDataTests(TestCase):
         homes = services._mock_home_data("Glendale", "CA")
         self.assertGreaterEqual(len(homes), 1)
         self.assertTrue(all(isinstance(h, Home) for h in homes))
+        self.assertEqual(homes[0].city, "Glendale")
+        self.assertNotEqual(homes[1].city, "Glendale")
+
+    @override_settings(DEBUG=False, RAPIDAPI_KEY="", ATTOM_API_KEY="")
+    def test_production_without_property_api_never_returns_demo_homes(self):
+        with self.assertRaises(services.PropertySearchUnavailable) as err:
+            services.fetch_recently_sold_homes("Sacramento", "CA")
+        self.assertIn("not configured", str(err.exception))
+
+    @override_settings(DEBUG=True, RAPIDAPI_KEY="", ATTOM_API_KEY="")
+    def test_demo_data_is_not_used_for_radius_searches(self):
+        with self.assertRaises(services.PropertySearchUnavailable):
+            services.fetch_recently_sold_homes("Sacramento", "CA", radius_miles=5)
+
+    @override_settings(RAPIDAPI_KEY="", ATTOM_API_KEY="test-attom-key")
+    def test_attom_fallback_does_not_silently_ignore_radius(self):
+        with self.assertRaises(services.PropertySearchUnavailable) as err:
+            services.fetch_recently_sold_homes("Sacramento", "CA", radius_miles=5)
+        self.assertIn("Radius filtering", str(err.exception))
+
+    @override_settings(RAPIDAPI_KEY="test-rapid-key")
+    @patch("homes.services._geocode", return_value=None)
+    @patch("homes.services.requests.post")
+    def test_rapidapi_radius_fails_if_search_center_cannot_be_geocoded(self, post, _geocode):
+        with self.assertRaises(services.PropertySearchUnavailable) as err:
+            services._fetch_from_rapidapi("Sacramento", "CA", None, 20, 5)
+        self.assertIn("could not be geocoded", str(err.exception))
+        post.assert_not_called()
 
 
 class HomeModelTests(TestCase):
@@ -89,3 +117,19 @@ class DashboardViewTests(TestCase):
         self.assertEqual(set(client.session["current_home_ids"]),
                          {h.id for h in homes})
         self.assertIn("Glendale", client.session["current_search_label"])
+
+    @patch("homes.views.process_home_sync")
+    @patch("homes.views.fetch_recently_sold_homes", side_effect=services.PropertySearchUnavailable(
+        "Live property search is not configured."
+    ))
+    def test_live_search_error_is_shown_instead_of_demo_results(self, _fetch, _process):
+        client = Client()
+        response = client.post("/search/", {"city": "Sacramento", "state": "CA", "radius": "15"})
+        self.assertEqual(response.status_code, 302)
+        response = client.get("/")
+        self.assertContains(response, "Live property search is not configured.")
+
+    def test_dashboard_discloses_unconfigured_live_search(self):
+        with override_settings(DEBUG=False, RAPIDAPI_KEY="", ATTOM_API_KEY=""):
+            response = Client().get("/")
+        self.assertContains(response, "Live property search is not configured")

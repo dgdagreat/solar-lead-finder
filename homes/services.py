@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 RAPIDAPI_HOST = "realty-in-us.p.rapidapi.com"
 
 
+class PropertySearchUnavailable(RuntimeError):
+    """Raised instead of presenting demo/fallback rows as live listings."""
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Public entry point
 # ──────────────────────────────────────────────────────────────────────────
@@ -25,24 +29,46 @@ RAPIDAPI_HOST = "realty-in-us.p.rapidapi.com"
 def fetch_recently_sold_homes(city: str, state: str, zip_code: str = None,
                               max_results: int = 20, radius_miles: float = None):
     """
-    Fetch recently sold homes. Tries RapidAPI → ATTOM → mock data.
+    Fetch recently sold homes. Tries RapidAPI → ATTOM. Mock data is only used
+    for an unconfigured local development environment.
 
     radius_miles: if set, results are narrowed to homes within this many miles
     of the searched city/zip centre (RapidAPI path only; geocoded via Google).
     """
+    has_live_provider = bool(settings.RAPIDAPI_KEY or settings.ATTOM_API_KEY)
     if settings.RAPIDAPI_KEY:
         logger.info("Using RapidAPI (Realty in US)")
         homes = _fetch_from_rapidapi(city, state, zip_code, max_results, radius_miles)
         if homes:
             return homes
-        logger.warning("RapidAPI returned no results — falling back")
+        logger.warning("RapidAPI returned no results — checking an eligible fallback")
 
     if settings.ATTOM_API_KEY:
+        if radius_miles:
+            raise PropertySearchUnavailable(
+                "Radius filtering requires the Realty-in-US RapidAPI provider. "
+                "ATTOM results cannot currently be distance-checked, so they were not used."
+            )
         logger.info("Using ATTOM API")
-        return _fetch_from_attom(city, state, zip_code, max_results)
+        homes = _fetch_from_attom(city, state, zip_code, max_results)
+        if homes:
+            return homes
 
-    logger.warning("No API keys set — using mock data")
-    return _mock_home_data(city, state)
+    # Demo rows are useful locally, but in production they look like real,
+    # location-specific sales and can silently ignore radius filters.
+    if not has_live_provider and settings.DEBUG and not radius_miles:
+        logger.warning("No property API configured — using clearly-labeled local demo data")
+        return _mock_home_data(city, state)
+
+    if not has_live_provider:
+        raise PropertySearchUnavailable(
+            "Live property search is not configured. Add RAPIDAPI_KEY in Google "
+            "Cloud to search real recently sold homes. Demo results are disabled in production."
+        )
+    raise PropertySearchUnavailable(
+        "The configured property-search provider returned no homes or is unavailable. "
+        "No demo results were substituted. Check the provider subscription and try again."
+    )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -63,7 +89,10 @@ def _fetch_from_rapidapi(city: str, state: str, zip_code: str, max_results: int,
         if center:
             max_results = max(max_results, 50)
         else:
-            logger.warning("Radius requested but geocoding unavailable — results not distance-filtered")
+            raise PropertySearchUnavailable(
+                "The search location could not be geocoded, so the requested radius "
+                "could not be applied. No unfiltered results were returned."
+            )
 
     headers = {
         "Content-Type": "application/json",
@@ -219,12 +248,13 @@ def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> floa
 def _beyond_radius(prop: dict, center: tuple, radius_miles: float) -> bool:
     """
     True if a RapidAPI property is farther than radius_miles from `center`.
-    Fails open (returns False) when the property has no coordinates.
+    Fails closed (returns True) when the property has no coordinates because
+    its distance cannot be verified.
     """
     coord = ((prop.get("location") or {}).get("address") or {}).get("coordinate") or {}
     lat, lon = coord.get("lat"), coord.get("lon")
     if lat is None or lon is None:
-        return False
+        return True
     return _haversine_miles(center[0], center[1], lat, lon) > radius_miles
 
 
@@ -275,8 +305,8 @@ def _fetch_from_attom(city: str, state: str, zip_code: str, max_results: int):
 
 def _mock_home_data(city: str, state: str):
     """
-    Real-looking addresses that actually resolve to residential rooftops
-    in Google Maps satellite view (verified manually).
+    Fixed sample addresses for local demos. These are not matched to the
+    requested city and must never be presented as live search results.
     """
     mock_homes = [
         {"address": "2215 Rimcrest Dr",      "city": "Glendale",       "state": "CA", "zip_code": "91207", "sale_price": 1100000},
@@ -287,11 +317,10 @@ def _mock_home_data(city: str, state: str):
     ]
     homes = []
     for data in mock_homes:
-        # Override city/state with what user searched so results appear relevant
         home, _ = Home.objects.get_or_create(
             address=data["address"],
-            city=city or data["city"],
-            state=state or data["state"],
+            city=data["city"],
+            state=data["state"],
             defaults={"zip_code": data["zip_code"], "sale_price": data["sale_price"]}
         )
         homes.append(home)

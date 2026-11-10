@@ -1,7 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
+from django.conf import settings
 from .models import Home
-from .services import fetch_recently_sold_homes
+from .services import fetch_recently_sold_homes, PropertySearchUnavailable
 from detector.tasks import process_home_sync
 from detector.reference_comparator import add_reference
 
@@ -46,6 +47,13 @@ def dashboard(request):
     if solar_status:
         homes = homes.filter(solar_status=solar_status)
 
+    if settings.RAPIDAPI_KEY or settings.ATTOM_API_KEY:
+        search_mode = 'live'
+    elif settings.DEBUG:
+        search_mode = 'demo'
+    else:
+        search_mode = 'unavailable'
+
     context = {
         'homes': homes,
         'leads': leads,
@@ -60,6 +68,7 @@ def dashboard(request):
         'search_label': search_label,
         'all_count': Home.objects.count(),
         'suggested_cities': SUGGESTED_CITIES,
+        'search_mode': search_mode,
     }
     return render(request, 'homes/dashboard.html', context)
 
@@ -81,10 +90,20 @@ def search_homes(request):
         try:
             radius_miles = float(radius) if radius else None
         except ValueError:
-            radius_miles = None
+            messages.error(request, 'Enter a valid radius in miles.', extra_tags='danger')
+            return redirect('dashboard')
 
-        homes = fetch_recently_sold_homes(city, state, zip_code or None,
-                                          radius_miles=radius_miles)
+        if radius_miles is not None and not 1 <= radius_miles <= 500:
+            messages.error(request, 'Radius must be between 1 and 500 miles.', extra_tags='danger')
+            return redirect('dashboard')
+
+        try:
+            homes = fetch_recently_sold_homes(
+                city, state, zip_code or None, radius_miles=radius_miles
+            )
+        except PropertySearchUnavailable as exc:
+            messages.error(request, str(exc), extra_tags='danger')
+            return redirect('dashboard')
 
         if homes:
             # Always reset and reprocess so stale results are cleared
@@ -97,16 +116,29 @@ def search_homes(request):
 
             # Scope the dashboard to just this search
             request.session['current_home_ids'] = [h.id for h in homes]
-            label = f"{city.title()}, {state.upper()}"
-            if radius_miles:
-                label += f" · within {radius_miles:g} mi"
-            if zip_code:
-                label += f" · {zip_code}"
+            if not settings.RAPIDAPI_KEY and not settings.ATTOM_API_KEY:
+                label = "Demo homes (not filtered by your search)"
+            else:
+                label = f"{city.title()}, {state.upper()}"
+                if radius_miles:
+                    label += f" · within {radius_miles:g} mi"
+                if zip_code:
+                    label += f" · {zip_code}"
             request.session['current_search_label'] = label
 
-            messages.success(request, f'Found {len(homes)} homes and ran solar detection!')
+            if not settings.RAPIDAPI_KEY and not settings.ATTOM_API_KEY:
+                messages.info(
+                    request,
+                    f'Loaded {len(homes)} demo homes. They are fixed sample addresses, '
+                    'not results for the searched city; radius was not applied.'
+                )
+            else:
+                messages.success(request, f'Found {len(homes)} homes and ran solar detection!')
         else:
-            messages.warning(request, 'No homes found. Try a different city or a larger radius.')
+            messages.warning(
+                request,
+                'No recently sold homes matched this search. The previous results were kept.'
+            )
 
         return redirect('dashboard')
 

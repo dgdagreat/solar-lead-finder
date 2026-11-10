@@ -15,6 +15,15 @@
                     Enter a city to pull recently sold homes. We'll check each roof via satellite to see if they already have solar panels.
                     <strong>Homes without solar = your leads.</strong>
                 </p>
+                {% if search_mode == 'unavailable' %}
+                <div class="alert alert-warning py-2 small">
+                    Live property search is not configured. Searches will not show homes until a property API is connected; demo addresses are disabled here.
+                </div>
+                {% elif search_mode == 'demo' %}
+                <div class="alert alert-info py-2 small">
+                    Demo mode: searches use fixed sample addresses, not homes matched to the city. Radius filtering is unavailable.
+                </div>
+                {% endif %}
                 <form method="POST" action="{% url 'search_homes' %}" class="row g-2 align-items-end">
                     {% csrf_token %}
                     <div class="col-md-3">
