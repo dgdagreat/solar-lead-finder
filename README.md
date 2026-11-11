@@ -18,7 +18,7 @@ Door-to-door and cold-call solar sales waste enormous time on homes that *alread
 | --- | --- |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Detection breakdown](docs/screenshots/detail.png) |
 
-The per-home view shows the **transparent 5-stage detection breakdown** — every scan reveals exactly *why* a rooftop was or wasn't flagged, with a live score bar for each computer-vision stage.
+The per-home view shows the **transparent per-stage detection breakdown** — every scan reveals exactly *why* a rooftop was or wasn't flagged, with a live score bar for each computer-vision stage.
 
 ## 🌐 Live demo
 
@@ -34,12 +34,12 @@ Spins up on Render's free tier with **mock data** out of the box (no API keys) �
 - **Search recently-sold homes** by city / ZIP, with an optional **radius** filter (Realty-in-US via RapidAPI).
 - **Runs with zero API keys** — falls back to realistic mock homes so anyone can demo the full flow instantly.
 - **Rooftop satellite imagery** at zoom 20 (Google Static Maps), with the target building auto-highlighted.
-- **5-stage OpenCV detector** scores each roof for solar, with a fully **transparent per-stage breakdown** in the UI.
+- **Multi-stage OpenCV detector** scores each roof for solar, with a fully **transparent per-stage breakdown** in the UI.
 - **Automatic lead flagging** + a one-click **"Confirm Has/No Solar"** human-in-the-loop that improves future scans.
 - **Dashboard** with status filters, per-search scoping, and live lead stats.
 
 ## 🧠 How the detection works
-The detector ([`detector/solar_detector.py`](detector/solar_detector.py)) fuses **five independent signals**, each keyed to a physical property of panel arrays:
+The detector ([`detector/solar_detector.py`](detector/solar_detector.py)) fuses **four active signals**, each keyed to a physical property of panel arrays:
 
 | Stage | Signal | Idea |
 | --- | --- | --- |
@@ -47,12 +47,11 @@ The detector ([`detector/solar_detector.py`](detector/solar_detector.py)) fuses 
 | 2 | **Grid-line detection** | evenly-spaced parallel lines (Hough transform + periodicity check) |
 | 3 | **Rectangle clustering** | many near-identical-size rectangles grouped together |
 | 4 | **Dark-blob uniformity** | flat, smooth, solid blobs of panel size |
-| 5 | **Reference similarity** | margin vs. a library of confirmed solar *and* no-solar fingerprints |
 
-A home is marked **has-solar** only when the weighted score clears a threshold **and ≥ 2 stages agree** — which keeps false positives (missed leads) low.
+A home is marked **has-solar** only when the weighted score clears a threshold **and at least two stages agree**. A fifth reference-similarity stage is wired into the pipeline but currently disabled (it scores zero) while the project moves to independently sourced imagery.
 
 ### On accuracy and the CNN
-The app uses a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.py)) when its bundled ONNX model is available, with the five-stage CV detector as a fallback. Before assigning either solar status or a lead, it checks that a plausible roof is near the address point in the same image and rejects greenery inside the candidate roof outline; if either check fails, the home is marked **Roof Unverified** and gets no solar or lead label. On an independent, geographically separated test set of 200 roof images, the classifier reached 81.5% balanced accuracy with a decision cutoff selected on the validation set. This is a Queens 2018 roof-centered result; live Google Maps accuracy has not been measured. The app's confirmation flow can collect in-domain labels for future training.
+The app uses a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.py)) when its bundled ONNX model is available, with the CV detector as a fallback. Before assigning either solar status or a lead, it checks that a plausible roof is near the address point in the same image and rejects greenery inside the candidate roof outline; if either check fails, the home is marked **Roof Unverified** and gets no solar or lead label. On an independent, geographically separated test set of 200 roof images, the classifier reached 81.5% balanced accuracy with a decision cutoff selected on the validation set. This is a Queens 2018 roof-centered result; live Google Maps accuracy has not been measured. The app's confirmation flow can collect in-domain labels for future training.
 
 ## 🛠️ Tech stack
 - **Backend:** Django 6 · Django REST Framework · SQLite *(dev)* · Postgres *(prod)*
@@ -67,8 +66,8 @@ The app uses a **MobileNetV3 CNN classifier** ([`detector/cnn.py`](detector/cnn.
 solarleads/   Django project (settings, urls, celery)
 homes/        Home model · search views · services (property-data APIs) · dashboard
 detector/     CV pipeline — solar_detector, reference_comparator, rooftop_annotator,
-              image_fetcher, tasks (orchestration) · experimental cnn + trainer
-templates/    dashboard + home detail (with the live 5-stage breakdown)
+              image_fetcher, tasks (orchestration) · cnn classifier + trainer
+templates/    dashboard + home detail (with the live per-stage breakdown)
 ```
 
 ## 🚀 Getting started
@@ -87,12 +86,15 @@ Open **http://localhost:8000**, enter a city (try **San Francisco, CA**), and wa
 
 > 💡 **No API keys?** The app detects that and serves realistic mock homes, so you can explore the entire dashboard → detection → lead flow with zero setup.
 
-### Optional: the CNN experiments
+### Optional: train your own CNN
 ```bash
 pip install -r requirements-ml.txt
-python manage.py prepare_cnn_data     # build a training set from confirmed homes
 python -m detector.cnn_train          # fine-tune MobileNetV3 (Apple-Silicon MPS aware)
 ```
+
+Do not use the app's Google Maps scans or manual confirmations as model training,
+validation, test, or reference images. Use independently sourced imagery and
+geographically separated labels instead.
 
 ### Train on independently labeled roofs
 The repository also includes a reproducible external-data path. It downloads the
@@ -137,7 +139,7 @@ three-annotator quality review ([dataset](https://zenodo.org/records/15084216),
 [paper](https://www.nature.com/articles/s41597-025-06523-2)).
 
 ## 🧭 Roadmap
-- [x] Live hosted demo — [solar-lead-finder.onrender.com](https://solar-lead-finder.onrender.com)
+- [x] Live hosted demo — [on Google Cloud Run](https://solar-lead-finder-vrxzqxauuq-uc.a.run.app)
 - [x] Test coverage for the detector + property-API parsers
 - [x] Train and ship MobileNetV3 with an external geographic holdout
 - [x] Publish balanced accuracy, recall, specificity, and confusion-matrix results
