@@ -76,6 +76,12 @@ def reference_scores(pil_image) -> dict:
     Raw two-class comparison: how similar the candidate is to the best
     SOLAR reference vs the best NO-SOLAR reference.
     """
+    # Google Maps content cannot be retained as detector reference/training
+    # material. Keep the public API shape while the app migrates to an
+    # independently sourced, licensed reference set.
+    return {"best_solar": 0.0, "best_nosolar": 0.0,
+            "n_solar": 0, "n_nosolar": 0, "has_fp": False}
+
     library = _load_library()
     solar   = [r for r in library if r.get("label", "solar") == "solar"]
     nosolar = [r for r in library if r.get("label") == "no_solar"]
@@ -117,43 +123,11 @@ def add_reference(address: str, label: str = "solar") -> bool:
     persistent reference library under `label` ("solar" or "no_solar").
     Returns True on success.
     """
-    from .image_fetcher import get_static_map_url
-
-    url = get_static_map_url(address)
-    if not url:
-        return False
-
-    try:
-        resp = requests.get(url, timeout=15)
-        resp.raise_for_status()
-        pil_img = Image.open(BytesIO(resp.content)).convert("RGB")
-    except Exception as e:
-        logger.error(f"Failed to fetch reference image for {address}: {e}")
-        return False
-
-    fp = _fingerprint(pil_img)
-    if fp is None:
-        logger.warning(f"No recognisable region to fingerprint: {address}")
-        return False
-
-    library = _load_library()
-
-    # Avoid duplicates (same address + same label)
-    if any(r["address"] == address and r.get("label", "solar") == label for r in library):
-        logger.info(f"Reference already exists [{label}]: {address}")
-        return True
-
-    # Save the image for inspection
-    out_dir = REF_DIR if label == "solar" else NEG_DIR
-    out_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = address.replace(" ", "_").replace(",", "")[:60]
-    cv2.imwrite(str(out_dir / f"{safe_name}.jpg"),
-                cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR))
-
-    library.append({"address": address, "fingerprint": fp, "label": label})
-    _save_library(library)
-    logger.info(f"Reference added [{label}] ({len(library)} total): {address}")
-    return True
+    logger.warning(
+        "Reference image ingestion is disabled; retain the label without "
+        "fetching or storing Google Maps imagery."
+    )
+    return False
 
 
 def build_reference_library(force: bool = False):
@@ -162,6 +136,9 @@ def build_reference_library(force: bool = False):
     have solar panels (solar_confidence >= 45%).
     Skips addresses already in the library unless force=True.
     """
+    logger.warning("Reference library build is disabled pending independently sourced imagery.")
+    return {"total": 0, "solar": 0, "no_solar": 0}
+
     if force:
         if LIBRARY_FILE.exists():
             LIBRARY_FILE.unlink()
@@ -204,6 +181,9 @@ def add_from_db_confirmed():
     Convenience: add all DB homes with solar_confidence >= 45 % to library.
     Call this after a batch scan to grow the reference set over time.
     """
+    logger.warning("Confirmed-address image ingestion is disabled.")
+    return 0
+
     try:
         from homes.models import Home
         confirmed = Home.objects.filter(
@@ -224,6 +204,9 @@ def seed_negatives_from_db(limit: int = 10) -> int:
     rectangles) — these are safe negatives even though the labels are
     machine-generated. Human "Confirm No Solar" clicks add stronger negatives.
     """
+    logger.warning("Confirmed-address image ingestion is disabled.")
+    return 0
+
     try:
         from homes.models import Home
     except Exception as e:

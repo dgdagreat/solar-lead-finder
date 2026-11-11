@@ -1,10 +1,7 @@
 # Controls what `gcloud run deploy --source .` uploads to Cloud Build.
 #
-# IMPORTANT: without this file, gcloud derives its exclusions from .gitignore,
-# which lists `*.onnx`, `*.pt` and `/media/` — that would silently drop the
-# bundled ONNX classifier (detector/models/solar_cnn_queens2018.onnx) and the
-# Stage-5 reference fingerprints from the image, degrading detection. This file
-# replaces that behaviour and keeps those runtime assets in.
+# This file keeps the bundled ONNX classifier while excluding local reference
+# imagery. Confirmed Google Maps scans must not be packaged as detector data.
 
 .git/
 .gitignore
@@ -29,6 +26,8 @@ staticfiles/
 media/home_images/
 media/annotated_*.jpg
 media/models/*.pt
+media/solar_references/
+media/nosolar_references/
 docs/screenshots/
 
 # OS / editor noise

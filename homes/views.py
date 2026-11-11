@@ -5,7 +5,6 @@ import logging
 from .models import Home
 from .services import fetch_recently_sold_homes, PropertySearchUnavailable
 from detector.tasks import process_home_sync
-from detector.reference_comparator import add_reference
 
 logger = logging.getLogger(__name__)
 
@@ -219,22 +218,13 @@ def process_all(request):
 def confirm_solar(request, home_id):
     """
     User manually confirms this home HAS solar panels.
-    Adds it to the reference library to improve future detections.
     """
     home = get_object_or_404(Home, id=home_id)
     home.solar_status  = 'has_solar'
     home.is_lead       = False
     home.save()
 
-    added = add_reference(home.full_address)
-    if added:
-        messages.success(
-            request,
-            f'✅ {home.address} confirmed as solar — added to reference library! '
-            f'Future scans will compare against this home.'
-        )
-    else:
-        messages.info(request, f'{home.address} marked as solar.')
+    messages.success(request, f'{home.address} marked as solar.')
     return redirect('home_detail', home_id=home_id)
 
 
@@ -244,9 +234,6 @@ def confirm_no_solar(request, home_id):
     home.solar_status = 'no_solar'
     home.is_lead      = True
     home.save()
-
-    # Grow the NEGATIVE reference set so future scans discriminate better
-    add_reference(home.full_address, label="no_solar")
 
     messages.success(request, f'🔥 {home.address} confirmed as NO solar — marked as hot lead!')
     return redirect('home_detail', home_id=home_id)

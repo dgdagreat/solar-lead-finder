@@ -29,9 +29,18 @@ logger = logging.getLogger(__name__)
 # ── Tuning constants ──────────────────────────────────────────────────────
 MAX_CENTRE_DIST   = 100   # px — avoid accepting a neighboring roof across a street/yard
 MIN_ROOF_AREA     = 1200  # px² — smallest acceptable rooftop
-MAX_ROOF_AREA     = 200000# px² — largest acceptable rooftop
+MAX_ROOF_AREA     = 30000 # px² — larger fills often spill into fields or roads
 ROOF_WINDOW_RADIUS = 140  # px — clip the highlight to a single-home window around centre
 MAX_VEGETATION_FRACTION = 0.10  # reject shadowed foliage that looks grey in the roof mask
+# A second, tightly centered roof check is used when flood fill leaks into
+# neighboring trees or fails to seed on a roof-colored pixel.  It requires a
+# roof-color majority, limited visible vegetation, and real surface edges.
+CENTER_PATCH_RADIUS = 55
+CENTER_PATCH_MIN_ROOF_FRACTION = 0.60
+CENTER_PATCH_MAX_VEGETATION_FRACTION = 0.30
+CENTER_PATCH_MIN_EDGE_FRACTION = 0.035
+CENTER_PATCH_MIN_HUE_VARIATION = 8.0
+CENTER_PATCH_MIN_SATURATION_VARIATION = 10.0
 HIGHLIGHT_COLOR   = (30, 215, 255)   # BGR: vivid yellow-orange
 HIGHLIGHT_ALPHA   = 0.30             # fill opacity
 OUTLINE_THICKNESS = 3
@@ -137,6 +146,33 @@ def _annotate_rooftop(img_bgr: np.ndarray) -> tuple[np.ndarray, dict]:
 
     # ── Step 3: Verify property is in frame ───────────────────────────────
     verification = _verify_in_frame(img_hsv, target, filled_area, h, w, cx, cy)
+    if not verification["in_frame"]:
+        # Flood fill is useful for isolating roofs in ordinary imagery, but it
+        # can fail on low-contrast California roofs or absorb nearby shaded
+        # trees. Recheck only a small patch around the address point. Requiring
+        # roof-colored pixels, low vegetation, and surface edges keeps a plain
+        # road, lawn, or water patch from passing this fallback.
+        patch_evidence = _center_patch_roof_evidence(img_hsv, cx, cy)
+        if patch_evidence["roof_like"]:
+            patch = np.zeros((h, w), dtype=np.uint8)
+            cv2.circle(patch, (cx, cy), CENTER_PATCH_RADIUS, 255, -1)
+            target = cv2.bitwise_and(roof_mask, patch)
+            # Do not highlight every roof-colored surface in the local disk.
+            # Dense California blocks can put several roofs, streets, and
+            # driveways inside this window; retain only the connected component
+            # at the target point (or its nearest plausible roof component).
+            target = _roof_component_at_centre(target, cx, cy)
+            target = cv2.morphologyEx(target, cv2.MORPH_CLOSE, k5, iterations=2)
+            filled_area = int(cv2.countNonZero(target))
+            if filled_area >= MIN_ROOF_AREA:
+                verification = {
+                    "in_frame": True,
+                    "reason": "",
+                    "roof_detection_method": "center_patch",
+                    "vegetation_fraction": patch_evidence["vegetation_fraction"],
+                    "center_patch": patch_evidence,
+                }
+    verification.setdefault("roof_detection_method", "flood_fill")
     # Version marker lets the GCP demo recheck images annotated by the older,
     # foliage-blind verifier exactly once after this safeguard is deployed.
     verification["vegetation_checked"] = True
@@ -331,6 +367,54 @@ def _verify_in_frame(img_hsv, target_mask: np.ndarray, filled_area: int,
         "in_frame": True,
         "reason": "",
         "vegetation_fraction": round(vegetation_fraction, 3),
+    }
+
+
+def _center_patch_roof_evidence(img_hsv: np.ndarray, cx: int, cy: int) -> dict:
+    """Check local roof material and structure without relying on flood fill."""
+    h, w = img_hsv.shape[:2]
+    patch = np.zeros((h, w), dtype=np.uint8)
+    cv2.circle(patch, (cx, cy), CENTER_PATCH_RADIUS, 255, -1)
+    patch_area = max(cv2.countNonZero(patch), 1)
+
+    roof_mask = _roof_colour_mask(img_hsv)
+    roof_fraction = cv2.countNonZero(cv2.bitwise_and(roof_mask, patch)) / patch_area
+    green = cv2.inRange(
+        img_hsv,
+        np.array([30, 20, 25], dtype=np.uint8),
+        np.array([90, 255, 255], dtype=np.uint8),
+    )
+    shaded_olive = cv2.inRange(
+        img_hsv,
+        np.array([20, 80, 25], dtype=np.uint8),
+        np.array([29, 255, 255], dtype=np.uint8),
+    )
+    vegetation = cv2.bitwise_or(green, shaded_olive)
+    vegetation_fraction = cv2.countNonZero(
+        cv2.bitwise_and(vegetation, patch)
+    ) / patch_area
+    patch_pixels = img_hsv[patch > 0]
+    hue_variation = float(np.std(patch_pixels[:, 0]))
+    saturation_variation = float(np.std(patch_pixels[:, 1]))
+
+    # Value-channel edges are sufficient here: this is a local structural
+    # check, not a solar-panel detector. Uniform pavement has little support.
+    edges = cv2.Canny(img_hsv[:, :, 2], 45, 120)
+    edge_fraction = cv2.countNonZero(cv2.bitwise_and(edges, patch)) / patch_area
+    roof_like = (
+        roof_fraction >= CENTER_PATCH_MIN_ROOF_FRACTION
+        and vegetation_fraction <= CENTER_PATCH_MAX_VEGETATION_FRACTION
+        and edge_fraction >= CENTER_PATCH_MIN_EDGE_FRACTION
+        and hue_variation >= CENTER_PATCH_MIN_HUE_VARIATION
+        and saturation_variation >= CENTER_PATCH_MIN_SATURATION_VARIATION
+    )
+    return {
+        "roof_like": roof_like,
+        "roof_color_fraction": round(roof_fraction, 3),
+        "vegetation_fraction": round(vegetation_fraction, 3),
+        "edge_fraction": round(edge_fraction, 3),
+        "hue_variation": round(hue_variation, 2),
+        "saturation_variation": round(saturation_variation, 2),
     }
 
 

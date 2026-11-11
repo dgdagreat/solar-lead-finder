@@ -9,10 +9,8 @@ When the bundled ONNX checkpoint exists, the pipeline uses it. PyTorch checkpoin
 remain available for local experiments; without either artifact, the heuristic
 detector runs unchanged.
 
-Training data comes from your confirmed references (the "Confirm Has/No Solar"
-flywheel). Build the dataset and train with:
-    python manage.py prepare_cnn_data
-    python -m detector.cnn_train --epochs 12
+Train only from independently sourced imagery with geographic splits. App
+confirmations record labels for operations; they are not model-training data.
 
 Inference uses ONNX Runtime so production does not need PyTorch or torchvision.
 Training dependencies are imported lazily and remain optional.
